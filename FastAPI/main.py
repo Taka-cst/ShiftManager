@@ -5,7 +5,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from sqlalchemy import create_engine, Column, Integer, String, Boolean, DateTime, Date, Text, ForeignKey, func
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, Session, relationship
-from pydantic import BaseModel, validator
+from pydantic import BaseModel, validator, Field
 from datetime import datetime, date, timedelta
 from typing import Optional, List
 from passlib.context import CryptContext
@@ -19,7 +19,7 @@ load_dotenv()
 # 設定
 SECRET_KEY = os.getenv("SECRET_KEY", "your-secret-key-here")
 ALGORITHM = "HS256"
-ACCESS_TOKEN_EXPIRE_MINUTES = 30
+ACCESS_TOKEN_EXPIRE_MINUTES = int(os.getenv("ACCESS_TOKEN_EXPIRE_MINUTES", "30"))
 ADMIN_CODE = os.getenv("ADMIN_CODE", "admin123")
 
 # データベース設定
@@ -33,7 +33,7 @@ Base = declarative_base()
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")
 oauth2_scheme = OAuth2PasswordBearer(tokenUrl="/api/v1/auth/login")
 
-app = FastAPI(title="シフト管理API", version="1.0.0")
+app = FastAPI(title="シフト管理API", version="2.0.0")
 
 # CORS設定
 app.add_middleware(
@@ -45,7 +45,7 @@ app.add_middleware(
 )
 
 # データベースモデル
-class User(Base):
+class UserModel(Base):
     __tablename__ = "users"
     
     id = Column(Integer, primary_key=True, index=True)
@@ -55,10 +55,12 @@ class User(Base):
     admin = Column(Boolean, default=False)
     created_at = Column(DateTime, default=func.now())
     
-    events = relationship("Event", back_populates="user")
+    # リレーション
+    shift_requests = relationship("ShiftRequestModel", back_populates="user")
+    confirmed_shifts = relationship("ConfirmedShift", back_populates="user")
 
-class Event(Base):
-    __tablename__ = "events"
+class ShiftRequestModel(Base):
+    __tablename__ = "shift_requests"
     
     id = Column(Integer, primary_key=True, index=True)
     date = Column(Date, nullable=False)
@@ -70,7 +72,20 @@ class Event(Base):
     created_at = Column(DateTime, default=func.now())
     updated_at = Column(DateTime, default=func.now(), onupdate=func.now())
     
-    user = relationship("User", back_populates="events")
+    user = relationship("UserModel", back_populates="shift_requests")
+
+class ConfirmedShift(Base):
+    __tablename__ = "confirmed_shifts"
+    
+    id = Column(Integer, primary_key=True, index=True)
+    date = Column(Date, nullable=False)
+    start_time = Column(DateTime, nullable=False)
+    end_time = Column(DateTime, nullable=False)
+    user_id = Column(Integer, ForeignKey("users.id"), nullable=False)
+    created_at = Column(DateTime, default=func.now())
+    updated_at = Column(DateTime, default=func.now(), onupdate=func.now())
+    
+    user = relationship("UserModel", back_populates="confirmed_shifts")
 
 class Settings(Base):
     __tablename__ = "settings"
@@ -80,6 +95,13 @@ class Settings(Base):
     value = Column(String(255), nullable=False)
 
 # Pydanticモデル
+class MessageResponse(BaseModel):
+    message: str
+
+class Token(BaseModel):
+    access_token: str
+    token_type: str = "bearer"
+
 class UserCreate(BaseModel):
     username: str
     DisplayName: str
@@ -98,7 +120,7 @@ class UserCreate(BaseModel):
             raise ValueError('表示名は1〜20文字で入力してください。')
         return v
 
-class UserResponse(BaseModel):
+class User(BaseModel):
     id: int
     username: str
     DisplayName: str
@@ -107,39 +129,45 @@ class UserResponse(BaseModel):
     class Config:
         from_attributes = True
 
-class Token(BaseModel):
-    access_token: str
-    token_type: str
-
-class EventCreate(BaseModel):
+# シフト希望関連
+class ShiftRequestBase(BaseModel):
     date: date
     canwork: bool
-    description: Optional[str] = None
+    description: Optional[str] = Field(None, max_length=200)
     start_time: Optional[datetime] = None
     end_time: Optional[datetime] = None
-    
-    @validator('description')
-    def validate_description(cls, v):
-        if v and len(v) > 200:
-            raise ValueError('ひとことメッセージは200文字以内で入力してください。')
+
+    @validator("start_time", "end_time", pre=True)
+    def empty_str_to_none(cls, v):
+        if v == "":
+            return None
         return v
 
-class EventResponse(BaseModel):
+class ShiftRequestCreate(ShiftRequestBase):
+    pass
+
+class ShiftRequest(ShiftRequestBase):
     id: int
-    date: date
-    canwork: bool
-    description: Optional[str]
-    start_time: Optional[datetime]
-    end_time: Optional[datetime]
     user_id: int
-    user_display_name: Optional[str] = None
     
     class Config:
         from_attributes = True
 
-class EventsCalendarResponse(BaseModel):
-    events: List[EventResponse]
-    settings: dict
+# 確定シフト関連
+class ConfirmedShiftBase(BaseModel):
+    date: date
+    start_time: datetime
+    end_time: datetime
+
+class ConfirmedShiftCreate(ConfirmedShiftBase):
+    user_id: int
+
+class ConfirmedShift(ConfirmedShiftBase):
+    id: int
+    user: User
+    
+    class Config:
+        from_attributes = True
 
 class DayOfWeekSettings(BaseModel):
     monday: bool = False
@@ -189,12 +217,12 @@ def get_current_user(token: str = Depends(oauth2_scheme), db: Session = Depends(
     except JWTError:
         raise credentials_exception
     
-    user = db.query(User).filter(User.username == username).first()
+    user = db.query(UserModel).filter(UserModel.username == username).first()
     if user is None:
         raise credentials_exception
     return user
 
-def get_admin_user(current_user: User = Depends(get_current_user)):
+def get_admin_user(current_user: UserModel = Depends(get_current_user)):
     if not current_user.admin:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
@@ -255,13 +283,15 @@ def is_valid_class_day(date_obj: date, db: Session) -> bool:
     
     return weekday_mapping.get(weekday, False)
 
+# ===========================================
 # API エンドポイント
+# ===========================================
 
 # 認証API
-@app.post("/api/v1/auth/register", response_model=UserResponse, status_code=status.HTTP_201_CREATED)
+@app.post("/api/v1/auth/register", response_model=User, status_code=status.HTTP_201_CREATED)
 def register_user(user: UserCreate, db: Session = Depends(get_db)):
     # ユーザー名の重複チェック
-    if db.query(User).filter(User.username == user.username).first():
+    if db.query(UserModel).filter(UserModel.username == user.username).first():
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail="そのユーザー名は既に使われています。"
@@ -279,7 +309,7 @@ def register_user(user: UserCreate, db: Session = Depends(get_db)):
     
     # ユーザー作成
     hashed_password = get_password_hash(user.password)
-    db_user = User(
+    db_user = UserModel(
         username=user.username,
         DisplayName=user.DisplayName,
         hashed_password=hashed_password,
@@ -294,7 +324,7 @@ def register_user(user: UserCreate, db: Session = Depends(get_db)):
 
 @app.post("/api/v1/auth/login", response_model=Token)
 def login_user(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = Depends(get_db)):
-    user = db.query(User).filter(User.username == form_data.username).first()
+    user = db.query(UserModel).filter(UserModel.username == form_data.username).first()
     
     if not user or not verify_password(form_data.password, user.hashed_password):
         raise HTTPException(
@@ -309,127 +339,203 @@ def login_user(form_data: OAuth2PasswordRequestForm = Depends(), db: Session = D
     
     return {"access_token": access_token, "token_type": "bearer"}
 
-@app.get("/api/v1/auth/me", response_model=UserResponse)
-def get_current_user_info(current_user: User = Depends(get_current_user)):
+@app.get("/api/v1/auth/me", response_model=User)
+def get_current_user_info(current_user: UserModel = Depends(get_current_user)):
     return current_user
 
-# イベント（シフト）管理API
-@app.get("/api/v1/events/", response_model=EventsCalendarResponse)
-def get_events_calendar(current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
-    # 管理者は全ユーザーのシフト、一般ユーザーは自身のシフトのみ
-    if current_user.admin:
-        events = db.query(Event).all()
-        # user_display_nameを設定
-        for event in events:
-            event.user_display_name = event.user.DisplayName
-    else:
-        events = db.query(Event).filter(Event.user_id == current_user.id).all()
-    
-    # 設定を取得
-    settings = get_dow_settings(db)
-    
-    return EventsCalendarResponse(
-        events=events,
-        settings=settings.dict()
-    )
+# シフト希望API
+@app.get("/api/v1/shift-requests/", response_model=List[ShiftRequest])
+def get_my_shift_requests(current_user: UserModel = Depends(get_current_user), db: Session = Depends(get_db)):
+    """自分のシフト希望一覧取得"""
+    requests = db.query(ShiftRequestModel).filter(ShiftRequestModel.user_id == current_user.id).all()
+    return requests
 
-@app.post("/api/v1/events/", response_model=EventResponse, status_code=status.HTTP_201_CREATED)
-def create_event(event: EventCreate, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
+@app.post("/api/v1/shift-requests/", response_model=ShiftRequest, status_code=status.HTTP_201_CREATED)
+def create_shift_request(request: ShiftRequestCreate, current_user: UserModel = Depends(get_current_user), db: Session = Depends(get_db)):
+    """シフト希望の提出"""
     # 授業曜日チェック
-    if not is_valid_class_day(event.date, db):
+    if not is_valid_class_day(request.date, db):
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="授業曜日以外の日付にはシフトを登録できません。"
         )
     
     # 重複チェック
-    existing_event = db.query(Event).filter(
-        Event.user_id == current_user.id,
-        Event.date == event.date
+    existing_request = db.query(ShiftRequestModel).filter(
+        ShiftRequestModel.user_id == current_user.id,
+        ShiftRequestModel.date == request.date
     ).first()
     
-    if existing_event:
+    if existing_request:
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
             detail="その日付のシフトは既に登録されています。"
         )
     
-    # イベント作成
-    db_event = Event(
-        date=event.date,
-        canwork=event.canwork,
-        description=event.description,
-        start_time=event.start_time,
-        end_time=event.end_time,
+    # シフト希望作成
+    db_request = ShiftRequestModel(
+        date=request.date,
+        canwork=request.canwork,
+        description=request.description,
+        start_time=request.start_time,
+        end_time=request.end_time,
         user_id=current_user.id
     )
     
-    db.add(db_event)
+    db.add(db_request)
     db.commit()
-    db.refresh(db_event)
+    db.refresh(db_request)
     
-    return db_event
+    return db_request
 
-@app.put("/api/v1/events/{event_id}", response_model=EventResponse)
-def update_event(event_id: int, event: EventCreate, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
-    db_event = db.query(Event).filter(Event.id == event_id).first()
+@app.put("/api/v1/shift-requests/{request_id}", response_model=ShiftRequest)
+def update_shift_request(request_id: int, request: ShiftRequestCreate, current_user: UserModel = Depends(get_current_user), db: Session = Depends(get_db)):
+    """シフト希望の更新"""
+    db_request = db.query(ShiftRequestModel).filter(ShiftRequestModel.id == request_id).first()
     
-    if not db_event:
+    if not db_request:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="指定されたシフトが見つかりません。"
+            detail="指定されたシフト希望が見つかりません。"
         )
     
-    # 権限チェック（管理者でない場合、自身のシフトのみ更新可能）
-    if not current_user.admin and db_event.user_id != current_user.id:
+    # 権限チェック
+    if db_request.user_id != current_user.id:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="この操作を行う権限がありません。"
         )
     
     # 更新
-    db_event.date = event.date
-    db_event.canwork = event.canwork
-    db_event.description = event.description
-    db_event.start_time = event.start_time
-    db_event.end_time = event.end_time
+    db_request.date = request.date
+    db_request.canwork = request.canwork
+    db_request.description = request.description
+    db_request.start_time = request.start_time
+    db_request.end_time = request.end_time
     
     db.commit()
-    db.refresh(db_event)
+    db.refresh(db_request)
     
-    return db_event
+    return db_request
 
-@app.delete("/api/v1/events/{event_id}")
-def delete_event(event_id: int, current_user: User = Depends(get_current_user), db: Session = Depends(get_db)):
-    db_event = db.query(Event).filter(Event.id == event_id).first()
+@app.delete("/api/v1/shift-requests/{request_id}", response_model=MessageResponse)
+def delete_shift_request(request_id: int, current_user: UserModel = Depends(get_current_user), db: Session = Depends(get_db)):
+    """シフト希望の削除"""
+    db_request = db.query(ShiftRequestModel).filter(ShiftRequestModel.id == request_id).first()
     
-    if not db_event:
+    if not db_request:
         raise HTTPException(
             status_code=status.HTTP_404_NOT_FOUND,
-            detail="指定されたシフトが見つかりません。"
+            detail="指定されたシフト希望が見つかりません。"
         )
     
-    # 権限チェック（管理者でない場合、自身のシフトのみ削除可能）
-    if not current_user.admin and db_event.user_id != current_user.id:
+    # 権限チェック
+    if db_request.user_id != current_user.id:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="この操作を行う権限がありません。"
         )
     
-    db.delete(db_event)
+    db.delete(db_request)
     db.commit()
     
-    return {"message": "シフトを削除しました。"}
+    return MessageResponse(message="シフト希望を削除しました。")
+
+# 確定シフトAPI
+@app.get("/api/v1/confirmed-shifts/", response_model=List[ConfirmedShift])
+def get_confirmed_shifts(current_user: UserModel = Depends(get_current_user), db: Session = Depends(get_db)):
+    """確定シフト一覧取得"""
+    shifts = db.query(ConfirmedShift).all()
+    return shifts
 
 # 管理者向けAPI
-@app.get("/api/v1/admin/users", response_model=List[UserResponse])
-def get_all_users(admin_user: User = Depends(get_admin_user), db: Session = Depends(get_db)):
-    users = db.query(User).all()
+@app.get("/api/v1/admin/shift-requests", response_model=List[ShiftRequest])
+def get_all_shift_requests(admin_user: UserModel = Depends(get_admin_user), db: Session = Depends(get_db)):
+    """全ユーザーのシフト希望一覧取得"""
+    requests = db.query(ShiftRequestModel).all()
+    return requests
+
+@app.post("/api/v1/admin/confirmed-shifts", response_model=ConfirmedShift, status_code=status.HTTP_201_CREATED)
+def create_confirmed_shift(shift: ConfirmedShiftCreate, admin_user: UserModel = Depends(get_admin_user), db: Session = Depends(get_db)):
+    """確定シフトの作成"""
+    # ユーザー存在チェック
+    user = db.query(UserModel).filter(UserModel.id == shift.user_id).first()
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="指定されたユーザーが見つかりません。"
+        )
+    
+    # 確定シフト作成
+    db_shift = ConfirmedShift(
+        date=shift.date,
+        start_time=shift.start_time,
+        end_time=shift.end_time,
+        user_id=shift.user_id
+    )
+    
+    db.add(db_shift)
+    db.commit()
+    db.refresh(db_shift)
+    
+    return db_shift
+
+@app.put("/api/v1/admin/confirmed-shifts/{shift_id}", response_model=ConfirmedShift)
+def update_confirmed_shift(shift_id: int, shift: ConfirmedShiftCreate, admin_user: UserModel = Depends(get_admin_user), db: Session = Depends(get_db)):
+    """確定シフトの更新"""
+    db_shift = db.query(ConfirmedShift).filter(ConfirmedShift.id == shift_id).first()
+    
+    if not db_shift:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="指定された確定シフトが見つかりません。"
+        )
+    
+    # ユーザー存在チェック
+    user = db.query(UserModel).filter(UserModel.id == shift.user_id).first()
+    if not user:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="指定されたユーザーが見つかりません。"
+        )
+    
+    # 更新
+    db_shift.date = shift.date
+    db_shift.start_time = shift.start_time
+    db_shift.end_time = shift.end_time
+    db_shift.user_id = shift.user_id
+    
+    db.commit()
+    db.refresh(db_shift)
+    
+    return db_shift
+
+@app.delete("/api/v1/admin/confirmed-shifts/{shift_id}", response_model=MessageResponse)
+def delete_confirmed_shift(shift_id: int, admin_user: UserModel = Depends(get_admin_user), db: Session = Depends(get_db)):
+    """確定シフトの削除"""
+    db_shift = db.query(ConfirmedShift).filter(ConfirmedShift.id == shift_id).first()
+    
+    if not db_shift:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="指定された確定シフトが見つかりません。"
+        )
+    
+    db.delete(db_shift)
+    db.commit()
+    
+    return MessageResponse(message="確定シフトを削除しました。")
+
+@app.get("/api/v1/admin/users", response_model=List[User])
+def get_all_users(admin_user: UserModel = Depends(get_admin_user), db: Session = Depends(get_db)):
+    """ユーザー一覧取得"""
+    users = db.query(UserModel).all()
     return users
 
-@app.delete("/api/v1/admin/users/{user_id}")
-def delete_user(user_id: int, admin_user: User = Depends(get_admin_user), db: Session = Depends(get_db)):
-    user = db.query(User).filter(User.id == user_id).first()
+@app.delete("/api/v1/admin/users/{user_id}", response_model=MessageResponse)
+def delete_user(user_id: int, admin_user: UserModel = Depends(get_admin_user), db: Session = Depends(get_db)):
+    """ユーザー削除"""
+    user = db.query(UserModel).filter(UserModel.id == user_id).first()
     
     if not user:
         raise HTTPException(
@@ -446,19 +552,22 @@ def delete_user(user_id: int, admin_user: User = Depends(get_admin_user), db: Se
     
     display_name = user.DisplayName
     
-    # 関連するイベントも削除
-    db.query(Event).filter(Event.user_id == user_id).delete()
+    # 関連するデータも削除
+    db.query(ShiftRequestModel).filter(ShiftRequestModel.user_id == user_id).delete()
+    db.query(ConfirmedShift).filter(ConfirmedShift.user_id == user_id).delete()
     db.delete(user)
     db.commit()
     
-    return {"message": f"ユーザー '{display_name}' を削除しました。"}
+    return MessageResponse(message=f"ユーザー '{display_name}' を削除しました。")
 
 @app.get("/api/v1/admin/settings/dow", response_model=DayOfWeekSettings)
-def get_dow_settings_endpoint(admin_user: User = Depends(get_admin_user), db: Session = Depends(get_db)):
+def get_dow_settings_endpoint(admin_user: UserModel = Depends(get_admin_user), db: Session = Depends(get_db)):
+    """授業曜日設定の取得"""
     return get_dow_settings(db)
 
 @app.put("/api/v1/admin/settings/dow", response_model=DayOfWeekSettings)
-def update_dow_settings(settings: DayOfWeekSettings, admin_user: User = Depends(get_admin_user), db: Session = Depends(get_db)):
+def update_dow_settings(settings: DayOfWeekSettings, admin_user: UserModel = Depends(get_admin_user), db: Session = Depends(get_db)):
+    """授業曜日設定の更新"""
     set_dow_settings(db, settings)
     return settings
 
