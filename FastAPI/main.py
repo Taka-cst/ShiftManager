@@ -345,10 +345,40 @@ def get_current_user_info(current_user: UserModel = Depends(get_current_user)):
 
 # シフト希望API
 @app.get("/api/v1/shift-requests/", response_model=List[ShiftRequest])
-def get_my_shift_requests(current_user: UserModel = Depends(get_current_user), db: Session = Depends(get_db)):
+def get_my_shift_requests(
+    year: Optional[int] = None, 
+    month: Optional[int] = None,
+    current_user: UserModel = Depends(get_current_user), 
+    db: Session = Depends(get_db)
+):
     """自分のシフト希望一覧取得"""
-    requests = db.query(ShiftRequestModel).filter(ShiftRequestModel.user_id == current_user.id).all()
-    return requests
+    # クエリ開始
+    query = db.query(ShiftRequestModel).filter(ShiftRequestModel.user_id == current_user.id)
+    
+    # 年月フィルタリング
+    if year is not None and month is not None:
+        # バリデーション
+        if month < 1 or month > 12:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST, 
+                detail="yearとmonthは1〜12の範囲で指定してください。"
+            )
+        
+        # 月初と月末を計算
+        start_date = date(year, month, 1)
+        if month == 12:
+            end_date = date(year + 1, 1, 1)
+        else:
+            end_date = date(year, month + 1, 1)
+        
+        # 日付でフィルタリング
+        query = query.filter(
+            ShiftRequestModel.date >= start_date,
+            ShiftRequestModel.date < end_date
+        )
+    
+    # 結果を返す
+    return query.all()
 
 @app.post("/api/v1/shift-requests/", response_model=ShiftRequest, status_code=status.HTTP_201_CREATED)
 def create_shift_request(request: ShiftRequestCreate, current_user: UserModel = Depends(get_current_user), db: Session = Depends(get_db)):
@@ -443,10 +473,40 @@ def delete_shift_request(request_id: int, current_user: UserModel = Depends(get_
 
 # 確定シフトAPI
 @app.get("/api/v1/confirmed-shifts/", response_model=List[ConfirmedShift])
-def get_confirmed_shifts(current_user: UserModel = Depends(get_current_user), db: Session = Depends(get_db)):
+def get_confirmed_shifts(
+    year: Optional[int] = None, 
+    month: Optional[int] = None,
+    current_user: UserModel = Depends(get_current_user), 
+    db: Session = Depends(get_db)
+):
     """確定シフト一覧取得"""
-    shifts = db.query(ConfirmedShift).all()
-    return shifts
+    # クエリ開始
+    query = db.query(ConfirmedShift)
+    
+    # 年月フィルタリング
+    if year is not None and month is not None:
+        # バリデーション
+        if month < 1 or month > 12:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST, 
+                detail="yearとmonthは1〜12の範囲で指定してください。"
+            )
+        
+        # 月初と月末を計算
+        start_date = date(year, month, 1)
+        if month == 12:
+            end_date = date(year + 1, 1, 1)
+        else:
+            end_date = date(year, month + 1, 1)
+        
+        # 日付でフィルタリング
+        query = query.filter(
+            ConfirmedShift.date >= start_date,
+            ConfirmedShift.date < end_date
+        )
+    
+    # 結果を返す
+    return query.all()
 
 # 管理者向けAPI
 @app.get("/api/v1/admin/shift-requests", response_model=List[ShiftRequest])
