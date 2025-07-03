@@ -25,7 +25,7 @@ import { format } from 'date-fns';
 import { ja } from 'date-fns/locale';
 import { adminAPI } from '../services/api';
 import { useError } from '../contexts/ErrorContext';
-import { ShiftRequest, ConfirmedShiftCreate } from '../types';
+import { ShiftRequest, ConfirmedShiftCreate, User } from '../types';
 
 const AdminShiftRequestsPage: React.FC = () => {
   const { showError } = useError();
@@ -136,10 +136,11 @@ const AdminShiftRequestsPage: React.FC = () => {
                       />
                     </TableCell>
                     <TableCell>
-                      {request.canwork && request.start_time && request.end_time
-                        ? `${format(new Date(request.start_time), 'HH:mm')} - ${format(new Date(request.end_time), 'HH:mm')}`
-                        : '-'
-                      }
+                      {request.canwork
+                        ? request.start_time && request.end_time
+                          ? `${format(new Date(request.start_time), 'HH:mm')} - ${format(new Date(request.end_time), 'HH:mm')}`
+                          : '希望なし'
+                        : '-'}
                     </TableCell>
                     <TableCell>{request.description || '-'}</TableCell>
                     <TableCell>

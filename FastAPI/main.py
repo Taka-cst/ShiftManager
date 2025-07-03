@@ -149,6 +149,7 @@ class ShiftRequestCreate(ShiftRequestBase):
 class ShiftRequest(ShiftRequestBase):
     id: int
     user_id: int
+    user_display_name: str # 追加
     
     class Config:
         from_attributes = True
@@ -378,7 +379,10 @@ def get_my_shift_requests(
         )
     
     # 結果を返す
-    return query.all()
+    results = query.all()
+    for r in results:
+        r.user_display_name = r.user.DisplayName
+    return results
 
 @app.post("/api/v1/shift-requests/", response_model=ShiftRequest, status_code=status.HTTP_201_CREATED)
 def create_shift_request(request: ShiftRequestCreate, current_user: UserModel = Depends(get_current_user), db: Session = Depends(get_db)):
@@ -513,6 +517,8 @@ def get_confirmed_shifts(
 def get_all_shift_requests(admin_user: UserModel = Depends(get_admin_user), db: Session = Depends(get_db)):
     """全ユーザーのシフト希望一覧取得"""
     requests = db.query(ShiftRequestModel).all()
+    for r in requests:
+        r.user_display_name = r.user.DisplayName
     return requests
 
 @app.post("/api/v1/admin/confirmed-shifts", response_model=ConfirmedShift, status_code=status.HTTP_201_CREATED)

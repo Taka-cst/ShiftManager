@@ -62,24 +62,27 @@ const ShiftRequestFormPage: React.FC = () => {
       return;
     }
 
-    // 勤務可能な場合は開始・終了時間が必須
-    if (data.canwork && (!data.start_time || !data.end_time)) {
-      showError('勤務可能の場合は開始時間と終了時間を入力してください！⏰');
-      return;
-    }
-
     setIsLoading(true);
     try {
-      const formatTimeForAPI = (date: Date) => {
-        return format(date, 'HH:mm:ss');
+      // 日付と時刻を結合してISO 8601形式の文字列（`YYYY-MM-DDTHH:mm:ss`）を生成するヘルパー関数
+      const formatDateTimeForAPI = (date: Date, time: Date): string => {
+        const year = date.getFullYear();
+        const month = date.getMonth();
+        const day = date.getDate();
+        const hours = time.getHours();
+        const minutes = time.getMinutes();
+        const seconds = time.getSeconds();
+        const combined = new Date(year, month, day, hours, minutes, seconds);
+        // FastAPIが解釈できる形式にフォーマット
+        return format(combined, "yyyy-MM-dd'T'HH:mm:ss");
       };
 
       const requestData = {
         date: format(data.date, 'yyyy-MM-dd'),
         canwork: data.canwork,
         description: data.description || undefined,
-        start_time: data.canwork && data.start_time ? formatTimeForAPI(data.start_time) : undefined,
-        end_time: data.canwork && data.end_time ? formatTimeForAPI(data.end_time) : undefined,
+        start_time: data.canwork && data.start_time ? formatDateTimeForAPI(data.date, data.start_time) : undefined,
+        end_time: data.canwork && data.end_time ? formatDateTimeForAPI(data.date, data.end_time) : undefined,
       };
 
       console.log('送信するデータ:', requestData); // デバッグ用
@@ -202,7 +205,6 @@ const ShiftRequestFormPage: React.FC = () => {
                     <Controller
                       name="start_time"
                       control={control}
-                      rules={canwork ? { required: '開始時間を入力してください' } : {}}
                       render={({ field }) => (
                         <TimePicker
                           label="開始時間 🕒"
@@ -226,7 +228,6 @@ const ShiftRequestFormPage: React.FC = () => {
                     <Controller
                       name="end_time"
                       control={control}
-                      rules={canwork ? { required: '終了時間を入力してください' } : {}}
                       render={({ field }) => (
                         <TimePicker
                           label="終了時間 🕒"
