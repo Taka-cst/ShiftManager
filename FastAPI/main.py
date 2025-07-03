@@ -38,7 +38,7 @@ app = FastAPI(title="シフト管理API", version="2.0.0")
 # CORS設定
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=["http://localhost:3001"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
@@ -57,7 +57,7 @@ class UserModel(Base):
     
     # リレーション
     shift_requests = relationship("ShiftRequestModel", back_populates="user")
-    confirmed_shifts = relationship("ConfirmedShift", back_populates="user")
+    confirmed_shifts = relationship("ConfirmedShiftModel", back_populates="user")
 
 class ShiftRequestModel(Base):
     __tablename__ = "shift_requests"
@@ -74,7 +74,7 @@ class ShiftRequestModel(Base):
     
     user = relationship("UserModel", back_populates="shift_requests")
 
-class ConfirmedShift(Base):
+class ConfirmedShiftModel(Base):
     __tablename__ = "confirmed_shifts"
     
     id = Column(Integer, primary_key=True, index=True)
@@ -481,7 +481,7 @@ def get_confirmed_shifts(
 ):
     """確定シフト一覧取得"""
     # クエリ開始
-    query = db.query(ConfirmedShift)
+    query = db.query(ConfirmedShiftModel)
     
     # 年月フィルタリング
     if year is not None and month is not None:
@@ -527,7 +527,7 @@ def create_confirmed_shift(shift: ConfirmedShiftCreate, admin_user: UserModel = 
         )
     
     # 確定シフト作成
-    db_shift = ConfirmedShift(
+    db_shift = ConfirmedShiftModel(
         date=shift.date,
         start_time=shift.start_time,
         end_time=shift.end_time,
@@ -543,7 +543,7 @@ def create_confirmed_shift(shift: ConfirmedShiftCreate, admin_user: UserModel = 
 @app.put("/api/v1/admin/confirmed-shifts/{shift_id}", response_model=ConfirmedShift)
 def update_confirmed_shift(shift_id: int, shift: ConfirmedShiftCreate, admin_user: UserModel = Depends(get_admin_user), db: Session = Depends(get_db)):
     """確定シフトの更新"""
-    db_shift = db.query(ConfirmedShift).filter(ConfirmedShift.id == shift_id).first()
+    db_shift = db.query(ConfirmedShift).filter(ConfirmedShiftModel.id == shift_id).first()
     
     if not db_shift:
         raise HTTPException(
@@ -573,7 +573,7 @@ def update_confirmed_shift(shift_id: int, shift: ConfirmedShiftCreate, admin_use
 @app.delete("/api/v1/admin/confirmed-shifts/{shift_id}", response_model=MessageResponse)
 def delete_confirmed_shift(shift_id: int, admin_user: UserModel = Depends(get_admin_user), db: Session = Depends(get_db)):
     """確定シフトの削除"""
-    db_shift = db.query(ConfirmedShift).filter(ConfirmedShift.id == shift_id).first()
+    db_shift = db.query(ConfirmedShiftModel).filter(ConfirmedShiftModel.id == shift_id).first()
     
     if not db_shift:
         raise HTTPException(

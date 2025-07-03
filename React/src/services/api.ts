@@ -146,22 +146,22 @@ export const adminAPI = {
     return response.data;
   },
 
-  // 確定シフト管理API（これが抜けてた！）
+  // 確定シフト管理API
   createConfirmedShift: async (shift: ConfirmedShiftCreate): Promise<ConfirmedShift> => {
     const response = await api.post<ConfirmedShift>('/admin/confirmed-shifts', shift);
     return response.data;
   },
 
-  updateConfirmedShift: async (id: number, shift: ConfirmedShiftCreate): Promise<ConfirmedShift> => {
+  // 確定シフト更新API（追加）
+  updateConfirmedShift: async (id: number, shift: Partial<ConfirmedShiftCreate>): Promise<ConfirmedShift> => {
     const response = await api.put<ConfirmedShift>(`/admin/confirmed-shifts/${id}`, shift);
     return response.data;
   },
 
-  deleteConfirmedShift: async (id: number): Promise<MessageResponse> => {
-    const response = await api.delete<MessageResponse>(`/admin/confirmed-shifts/${id}`);
-    return response.data;
+  // 確定シフト削除API（追加）
+  deleteConfirmedShift: async (id: number): Promise<void> => {
+    await api.delete(`/admin/confirmed-shifts/${id}`);
   },
-
   // ユーザー管理API
   getAllUsers: async (): Promise<User[]> => {
     const response = await api.get<User[]>('/admin/users');

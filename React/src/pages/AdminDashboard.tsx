@@ -18,28 +18,28 @@ const AdminDashboard: React.FC = () => {
   const adminMenuItems = [
     {
       title: 'ユーザー管理',
-      description: 'ユーザーの一覧・削除を管理するよ〜',
+      description: 'ユーザーの一覧や削除を管理します。',
       icon: <People fontSize="large" />,
       action: () => navigate('/admin/users'),
       color: 'primary.main',
     },
     {
       title: 'シフト希望一覧',
-      description: '全ユーザーのシフト希望を確認して確定するよ〜',
+      description: '全ユーザーのシフト希望を確認し、確定できます。',
       icon: <Assignment fontSize="large" />,
       action: () => navigate('/admin/shift-requests'),
       color: 'secondary.main',
     },
     {
       title: '確定シフト管理',
-      description: 'シフトの確定・編集・削除を行うよ〜',
+      description: 'シフトの確定・編集・削除を行います。',
       icon: <CalendarToday fontSize="large" />,
       action: () => navigate('/admin/confirmed-shifts'),
       color: 'success.main',
     },
     {
       title: '授業曜日設定',
-      description: '授業がある曜日を設定するよ〜',
+      description: '授業がある曜日を設定します。',
       icon: <Settings fontSize="large" />,
       action: () => navigate('/admin/settings'),
       color: 'warning.main',
@@ -53,7 +53,7 @@ const AdminDashboard: React.FC = () => {
           管理者ダッシュボード
         </Typography>
         <Typography variant="body1" color="textSecondary" paragraph>
-          管理者機能を使用して、シフト管理を行ってちょうだい♪
+          管理者機能を利用してシフト管理を行ってください。
         </Typography>
       </Box>
 
@@ -108,10 +108,10 @@ const AdminDashboard: React.FC = () => {
           管理者メニューの使い方
         </Typography>
         <Typography variant="body2" color="textSecondary">
-          💡 <strong>シフト希望一覧</strong>: ユーザーが提出したシフト希望を確認して、確定シフトを作成できるよ〜<br/>
-          👥 <strong>ユーザー管理</strong>: 登録されているユーザーの一覧表示・削除ができるよ〜<br/>
-          📅 <strong>確定シフト管理</strong>: 作成済みの確定シフトの確認・編集・削除ができるよ〜<br/>
-          ⚙️ <strong>授業曜日設定</strong>: どの曜日に授業があるかを設定できるよ〜
+          <strong>シフト希望一覧</strong>: ユーザーが提出したシフト希望を確認し、確定シフトを作成できます。<br/>
+          <strong>ユーザー管理</strong>: 登録されているユーザーの一覧表示や削除ができます。<br/>
+          <strong>確定シフト管理</strong>: 作成済みの確定シフトの確認・編集・削除ができます。<br/>
+          <strong>授業曜日設定</strong>: 授業がある曜日を設定できます。
         </Typography>
       </Box>
     </Container>
