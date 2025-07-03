@@ -1,0 +1,54 @@
+version: '3.8'
+
+services:
+  mysql:
+    image: mysql:8.0
+    container_name: shift_management_mysql
+    environment:
+      MYSQL_ROOT_PASSWORD: ${MYSQL_ROOT_PASSWORD}
+      MYSQL_DATABASE: ${MYSQL_DATABASE}
+      MYSQL_USER: ${MYSQL_USER}
+      MYSQL_PASSWORD: ${MYSQL_PASSWORD}
+    ports:
+      - "3309:3309"
+    volumes:
+      - mysql_data:/var/lib/mysql
+      - ./FastAPI/init.sql:/docker-entrypoint-initdb.d/init.sql
+    command: --default-authentication-plugin=mysql_native_password
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "localhost"]
+      timeout: 20s
+      retries: 10
+
+  api:
+    build:
+      context: ./FastAPI
+      dockerfile: Dockerfile
+    container_name: shift_management_api
+    ports:
+      - "4567:4567"
+    environment:
+      - DATABASE_URL=${DATABASE_URL}
+      - SECRET_KEY=${SECRET_KEY}
+      - ADMIN_CODE=${ADMIN_CODE}
+      - ACCESS_TOKEN_EXPIRE_MINUTES=${ACCESS_TOKEN_EXPIRE_MINUTES}
+    depends_on:
+      mysql:
+        condition: service_healthy
+    restart: unless-stopped
+
+  frontend:
+    build:
+      context: ./React
+      dockerfile: Dockerfile
+    container_name: shift_manager_frontend
+    ports:
+      - "9876:80"  # 9876番ポートでアクセス可能に！
+    volumes:
+      - ./React/nginx.conf:/etc/nginx/conf.d/default.conf
+    depends_on:
+      - api
+    restart: unless-stopped
+
+volumes:
+  mysql_data:

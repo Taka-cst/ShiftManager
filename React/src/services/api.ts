@@ -69,27 +69,59 @@ export const authAPI = {
 
 // Shift Requests API
 export const shiftRequestAPI = {
-  getMyShiftRequests: async (year?: number, month?: number): Promise<ShiftRequest[]> => {
+  // シフト希望作成
+  createShiftRequest: async (data: {
+    date: string;
+    canwork: boolean;
+    start_time?: string;
+    end_time?: string;
+    description?: string;
+  }) => {
+    const response = await api.post('/shift-requests/', data);
+    return response.data;
+  },
+
+  // 自分のシフト希望一覧取得（メソッド名追加）
+  getMyShiftRequests: async (year?: number, month?: number) => {
     const params = new URLSearchParams();
     if (year) params.append('year', year.toString());
     if (month) params.append('month', month.toString());
     
-    const response = await api.get<ShiftRequest[]>(`/shift-requests/?${params}`);
+    const response = await api.get(`/shift-requests/my?${params.toString()}`);
     return response.data;
   },
 
-  createShiftRequest: async (request: ShiftRequestCreate): Promise<ShiftRequest> => {
-    const response = await api.post<ShiftRequest>('/shift-requests/', request);
+  // 全員のシフト希望一覧取得（管理者用）
+  getShiftRequests: async (year?: number, month?: number) => {
+    const params = new URLSearchParams();
+    if (year) params.append('year', year.toString());
+    if (month) params.append('month', month.toString());
+    
+    const response = await api.get(`/shift-requests/?${params.toString()}`);
     return response.data;
   },
 
-  updateShiftRequest: async (id: number, request: ShiftRequestCreate): Promise<ShiftRequest> => {
-    const response = await api.put<ShiftRequest>(`/shift-requests/${id}`, request);
+  // 特定のシフト希望取得
+  getShiftRequest: async (id: number) => {
+    const response = await api.get(`/shift-requests/${id}`);
     return response.data;
   },
 
-  deleteShiftRequest: async (id: number): Promise<MessageResponse> => {
-    const response = await api.delete<MessageResponse>(`/shift-requests/${id}`);
+  // シフト希望更新
+  updateShiftRequest: async (id: number, data: {
+    date: string;
+    canwork: boolean;
+    start_time?: string;
+    end_time?: string;
+    description?: string;
+  }) => {
+    const response = await api.put(`/shift-requests/${id}`, data);
+    return response.data;
+  },
+
+  // シフト希望削除
+  deleteShiftRequest: async (id: number) => {
+    const response = await api.delete(`/shift-requests/${id}`);
     return response.data;
   },
 };

@@ -48,7 +48,7 @@ const AdminDayOfWeekSettingsPage: React.FC = () => {
       const data = await adminAPI.getDayOfWeekSettings();
       setSettings(data);
     } catch (error) {
-      showError('曜日設定の取得に失敗しちゃった〜😭');
+      showError('曜日設定の取得に失敗しました。');
     } finally {
       setLoading(false);
     }
@@ -67,13 +67,13 @@ const AdminDayOfWeekSettingsPage: React.FC = () => {
     
     try {
       await adminAPI.updateDayOfWeekSettings(settings);
-      setSuccessMessage('設定を保存したよ〜！✨');
+      setSuccessMessage('設定を保存しました。');
       setTimeout(() => setSuccessMessage(''), 3000); // 3秒後に消す
     } catch (error: any) {
       if (error.response?.data?.detail) {
         showError(error.response.data.detail);
       } else {
-        showError('設定の保存に失敗しちゃった💦');
+        showError('設定の保存に失敗しました。');
       }
     } finally {
       setSaving(false);
@@ -84,7 +84,7 @@ const AdminDayOfWeekSettingsPage: React.FC = () => {
     return (
       <Container>
         <Box display="flex" justifyContent="center" alignItems="center" height="50vh">
-          <Typography>読み込み中だよ〜⏰</Typography>
+          <Typography>読み込み中です。</Typography>
         </Box>
       </Container>
     );
@@ -97,7 +97,7 @@ const AdminDayOfWeekSettingsPage: React.FC = () => {
           授業曜日設定
         </Typography>
         <Typography variant="body1" color="textSecondary" paragraph>
-          授業がある曜日を選択してね〜！選択した曜日だけシフト管理の対象になるよ💡
+          授業がある曜日を選択してください。選択した曜日のみシフト管理の対象となります。
         </Typography>
 
         {successMessage && (
@@ -136,14 +136,14 @@ const AdminDayOfWeekSettingsPage: React.FC = () => {
               disabled={saving}
               sx={{ minWidth: 200 }}
             >
-              {saving ? '保存中...⏰' : '設定を保存する✨'}
+              {saving ? '保存中...' : '設定を保存する'}
             </Button>
           </Box>
 
           <Box sx={{ mt: 2, p: 2, bgcolor: 'grey.100', borderRadius: 1 }}>
             <Typography variant="body2" color="textSecondary">
-              💡 ヒント: この設定は全体のシフト管理に影響するよ〜<br/>
-              選択しなかった曜日はシフト希望の対象外になるから注意してね！
+              ※ この設定は全体のシフト管理に影響します。<br/>
+              選択しなかった曜日はシフト希望の対象外となりますのでご注意ください。
             </Typography>
           </Box>
         </Paper>
