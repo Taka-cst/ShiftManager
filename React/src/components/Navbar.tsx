@@ -57,9 +57,14 @@ const Navbar: React.FC = () => {
               確定シフト
             </Button>
             {isAdmin && (
-              <Button color="inherit" onClick={() => navigate('/admin')}>
-                管理者メニュー
-              </Button>
+              <>
+                <Button color="inherit" onClick={() => navigate('/admin/monthly-shifts')}>
+                  月間シフト管理
+                </Button>
+                <Button color="inherit" onClick={() => navigate('/admin')}>
+                  管理者メニュー
+                </Button>
+              </>
             )}
             
             <IconButton

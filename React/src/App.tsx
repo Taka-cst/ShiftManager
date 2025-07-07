@@ -18,6 +18,7 @@ import AdminDashboard from './pages/AdminDashboard';
 import AdminShiftRequestsPage from './pages/AdminShiftRequestsPage';
 import AdminUsersPage from './pages/AdminUsersPage';
 import AdminDayOfWeekSettingsPage from './pages/AdminDayOfWeekSettingsPage';
+import AdminMonthlyShiftPage from './pages/AdminMonthlyShiftPage';
 import AdminConfirmedShiftsPage from './pages/AdminConfirmedShiftsPage';
 
 const theme = createTheme({
@@ -99,6 +100,14 @@ const App: React.FC = () => {
                         <AdminShiftRequestsPage />
                       </AuthGuard>
                     }  
+                  />
+                  <Route
+                    path="/admin/monthly-shifts"
+                    element={
+                      <AuthGuard adminOnly>
+                        <AdminMonthlyShiftPage />
+                      </AuthGuard>
+                    }
                   />
                   <Route
                 path="/admin/confirmed-shifts"

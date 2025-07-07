@@ -9,7 +9,7 @@ import {
   Button,
   CardActions,
 } from '@mui/material';
-import { People, Assignment, CalendarToday, Settings } from '@mui/icons-material';
+import { People, Assignment, CalendarToday, Settings, DateRange } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
 
 const AdminDashboard: React.FC = () => {
@@ -29,6 +29,13 @@ const AdminDashboard: React.FC = () => {
       icon: <Assignment fontSize="large" />,
       action: () => navigate('/admin/shift-requests'),
       color: 'secondary.main',
+    },
+    {
+      title: '月間シフト管理',
+      description: '表形式で授業日のシフトを管理します。',
+      icon: <DateRange fontSize="large" />,
+      action: () => navigate('/admin/monthly-shifts'),
+      color: 'info.main',
     },
     {
       title: '確定シフト管理',
@@ -108,6 +115,7 @@ const AdminDashboard: React.FC = () => {
           管理者メニューの使い方
         </Typography>
         <Typography variant="body2" color="textSecondary">
+          <strong>月間シフト管理</strong>: 表形式で授業日のシフトを直接編集できます。管理者は表示されません。<br/>
           <strong>シフト希望一覧</strong>: ユーザーが提出したシフト希望を確認し、確定シフトを作成できます。<br/>
           <strong>ユーザー管理</strong>: 登録されているユーザーの一覧表示や削除ができます。<br/>
           <strong>確定シフト管理</strong>: 作成済みの確定シフトの確認・編集・削除ができます。<br/>
