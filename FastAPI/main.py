@@ -149,7 +149,7 @@ class ShiftRequestCreate(ShiftRequestBase):
 class ShiftRequest(ShiftRequestBase):
     id: int
     user_id: int
-    user_display_name: str # 追加
+    user_display_name: Optional[str] # 追加
     
     class Config:
         from_attributes = True
@@ -419,8 +419,52 @@ def create_shift_request(request: ShiftRequestCreate, current_user: UserModel = 
     db.add(db_request)
     db.commit()
     db.refresh(db_request)
+
+    # レスポンス用の辞書を作成
+    response_data = {
+        "id": db_request.id,
+        "date": db_request.date,
+        "canwork": db_request.canwork,
+        "description": db_request.description,
+        "start_time": db_request.start_time,
+        "end_time": db_request.end_time,
+        "user_id": db_request.user_id,
+        "user_display_name": current_user.DisplayName
+    }
     
-    return db_request
+    return ShiftRequest(**response_data)
+
+@app.get("/api/v1/shift-requests/{request_id}", response_model=ShiftRequest)
+def get_shift_request(request_id: int, current_user: UserModel = Depends(get_current_user), db: Session = Depends(get_db)):
+    """個別のシフト希望を取得"""
+    db_request = db.query(ShiftRequestModel).filter(ShiftRequestModel.id == request_id).first()
+    
+    if not db_request:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="指定されたシフト希望が見つかりません。"
+        )
+    
+    # 権限チェック（自分のデータのみ取得可能）
+    if db_request.user_id != current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="このシフト希望にアクセスする権限がありません。"
+        )
+    
+    # レスポンス用の辞書を作成
+    response_data = {
+        "id": db_request.id,
+        "date": db_request.date,
+        "canwork": db_request.canwork,
+        "description": db_request.description,
+        "start_time": db_request.start_time,
+        "end_time": db_request.end_time,
+        "user_id": db_request.user_id,
+        "user_display_name": current_user.DisplayName
+    }
+    
+    return ShiftRequest(**response_data)
 
 @app.put("/api/v1/shift-requests/{request_id}", response_model=ShiftRequest)
 def update_shift_request(request_id: int, request: ShiftRequestCreate, current_user: UserModel = Depends(get_current_user), db: Session = Depends(get_db)):
@@ -450,7 +494,19 @@ def update_shift_request(request_id: int, request: ShiftRequestCreate, current_u
     db.commit()
     db.refresh(db_request)
     
-    return db_request
+    # レスポンス用の辞書を作成
+    response_data = {
+        "id": db_request.id,
+        "date": db_request.date,
+        "canwork": db_request.canwork,
+        "description": db_request.description,
+        "start_time": db_request.start_time,
+        "end_time": db_request.end_time,
+        "user_id": db_request.user_id,
+        "user_display_name": current_user.DisplayName
+    }
+    
+    return ShiftRequest(**response_data)
 
 @app.delete("/api/v1/shift-requests/{request_id}", response_model=MessageResponse)
 def delete_shift_request(request_id: int, current_user: UserModel = Depends(get_current_user), db: Session = Depends(get_db)):

@@ -7,9 +7,16 @@ import {
   Paper,
 } from '@mui/material';
 import { useNavigate } from 'react-router-dom';
+import { useAuth } from '../contexts/AuthContext';
 
 const LandingPage: React.FC = () => {
   const navigate = useNavigate();
+  const {isAuthenticated} = useAuth();
+  React.useEffect(() => {
+    if (isAuthenticated) {
+      navigate('/dashboard');
+    }
+  }, [isAuthenticated, navigate]);
 
   return (
     <Container maxWidth="sm">

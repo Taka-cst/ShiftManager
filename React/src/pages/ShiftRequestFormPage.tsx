@@ -19,10 +19,11 @@ import { AdapterDateFns } from '@mui/x-date-pickers/AdapterDateFns';
 import { ja } from 'date-fns/locale';
 import { useForm, Controller } from 'react-hook-form';
 import { format } from 'date-fns';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useParams } from 'react-router-dom';
 import { Save, Cancel } from '@mui/icons-material';
 import { shiftRequestAPI } from '../services/api';
 import { useError } from '../contexts/ErrorContext';
+import { useLocation } from 'react-router-dom';
 
 interface FormData {
   date: Date | null;
@@ -34,9 +35,14 @@ interface FormData {
 
 const ShiftRequestFormPage: React.FC = () => {
   const navigate = useNavigate();
+  const { id: shiftId } = useParams<{ id?: string }>();
   const { showError } = useError();
   const [isLoading, setIsLoading] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
+
+  const location = useLocation();
+  const params = new URLSearchParams(location.search);
+  const dateParam = params.get('date');
 
   const {
     control,
@@ -46,13 +52,34 @@ const ShiftRequestFormPage: React.FC = () => {
     reset,
   } = useForm<FormData>({
     defaultValues: {
-      date: null,
+      date: dateParam ? new Date(dateParam) : null,
       canwork: true,
       start_time: null,
       end_time: null,
       description: '',
     },
   });
+
+  // 編集時は初期値をAPIから取得
+  React.useEffect(() => {
+    if (shiftId) {
+      (async () => {
+        try {
+          const res = await shiftRequestAPI.getShiftRequest(Number(shiftId));
+          reset({
+            date: res.date ? new Date(res.date) : null,
+            canwork: res.canwork,
+            start_time: res.start_time ? new Date(res.start_time) : null,
+            end_time: res.end_time ? new Date(res.end_time) : null,
+            description: res.description || '',
+          });
+        } catch (e) {
+          showError('編集データの取得に失敗しました😭');
+          navigate('/shift-requests');
+        }
+      })();
+    }
+  }, [shiftId, reset, showError, navigate]);
 
   const canwork = watch('canwork');
 
@@ -87,14 +114,19 @@ const ShiftRequestFormPage: React.FC = () => {
 
       console.log('送信するデータ:', requestData); // デバッグ用
 
-      await shiftRequestAPI.createShiftRequest(requestData);
-      
+
+      if (shiftId) {
+        // 編集時は更新APIを呼ぶ
+        await shiftRequestAPI.updateShiftRequest(Number(shiftId), requestData);
+      } else {
+        // 新規登録
+        await shiftRequestAPI.createShiftRequest(requestData);
+      }
       setSaveSuccess(true);
-      
-      // 2秒後にシフト希望一覧に戻る
+      // 0.5秒後にシフト希望一覧に戻る
       setTimeout(() => {
         navigate('/shift-requests');
-      }, 2000);
+      }, 500);
 
     } catch (error: any) {
       console.error('保存エラー:', error); // デバッグ用
@@ -118,7 +150,7 @@ const ShiftRequestFormPage: React.FC = () => {
         <Box sx={{ mt: 4, textAlign: 'center' }}>
           <Alert severity="success" sx={{ mb: 3 }}>
             <Typography variant="h6">
-              シフト希望を保存しました！✨
+              {shiftId ? 'シフト希望を更新しました！✨' : 'シフト希望を保存しました！✨'}
             </Typography>
             <Typography variant="body2">
               自動でシフト希望一覧に戻ります...
@@ -135,7 +167,7 @@ const ShiftRequestFormPage: React.FC = () => {
         <Box sx={{ mt: 4, mb: 4 }}>
           <Paper elevation={3} sx={{ p: 4 }}>
             <Typography variant="h4" component="h1" gutterBottom align="center">
-              シフト希望登録
+              {shiftId ? 'シフト希望編集' : 'シフト希望登録'}
             </Typography>
 
             <Box component="form" onSubmit={handleSubmit(onSubmit)} sx={{ mt: 3 }}>
@@ -288,7 +320,7 @@ const ShiftRequestFormPage: React.FC = () => {
                   size="large"
                   sx={{ minWidth: 160 }}
                 >
-                  {isLoading ? '保存中...⏰' : 'シフト希望を保存'}
+                  {isLoading ? '保存中...⏰' : (shiftId ? 'シフト希望を更新' : 'シフト希望を保存')}
                 </Button>
               </Box>
             </Box>

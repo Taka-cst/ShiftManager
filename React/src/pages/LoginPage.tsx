@@ -14,12 +14,19 @@ import { useNavigate, Link as RouterLink } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { useError } from '../contexts/ErrorContext';
 import { LoginFormData } from '../types';
+import { useEffect } from 'react';
 
 const LoginPage: React.FC = () => {
-  const { login } = useAuth();
+  const { login, isAuthenticated } = useAuth();
   const { showError } = useError();
   const navigate = useNavigate();
   const [isLoading, setIsLoading] = React.useState(false);
+
+  useEffect(() => {
+    if (isAuthenticated) {
+      navigate('/dashboard');
+    }
+  }, [isAuthenticated, navigate]);
 
   const {
     register,

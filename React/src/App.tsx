@@ -69,6 +69,14 @@ const App: React.FC = () => {
                 } 
               />
               <Route 
+                path="/shift-requests/:id/edit" 
+                element={
+                  <AuthGuard>
+                    <ShiftRequestFormPage />
+                  </AuthGuard>
+                } 
+              />
+              <Route 
                 path="/confirmed-shifts" 
                 element={
                   <AuthGuard>
