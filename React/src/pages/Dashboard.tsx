@@ -16,6 +16,13 @@ const Dashboard: React.FC = () => {
   const { user } = useAuth();
   const navigate = useNavigate();
 
+  //Adminなら/adminへリダイレクト
+  React.useEffect(() => {
+    if (user?.admin) {
+      navigate('/admin');
+    }
+  }, [user, navigate]);
+
   const menuItems = [
     {
       title: 'シフト希望を提出',

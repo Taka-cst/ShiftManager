@@ -50,19 +50,22 @@ const Navbar: React.FC = () => {
             <Button color="inherit" onClick={() => navigate('/dashboard')}>
               ダッシュボード
             </Button>
-            <Button color="inherit" onClick={() => navigate('/shift-requests')}>
-              シフト希望
-            </Button>
-            <Button color="inherit" onClick={() => navigate('/confirmed-shifts')}>
-              確定シフト
-            </Button>
-            {isAdmin && (
+            {isAdmin ? (
               <>
                 <Button color="inherit" onClick={() => navigate('/admin/monthly-shifts')}>
                   月間シフト管理
                 </Button>
                 <Button color="inherit" onClick={() => navigate('/admin')}>
                   管理者メニュー
+                </Button>
+              </>
+            ) : (
+              <>
+                <Button color="inherit" onClick={() => navigate('/shift-requests')}>
+                  シフト希望
+                </Button>
+                <Button color="inherit" onClick={() => navigate('/confirmed-shifts')}>
+                  確定シフト
                 </Button>
               </>
             )}

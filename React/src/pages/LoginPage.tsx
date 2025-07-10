@@ -17,16 +17,20 @@ import { LoginFormData } from '../types';
 import { useEffect } from 'react';
 
 const LoginPage: React.FC = () => {
-  const { login, isAuthenticated } = useAuth();
+  const { login, isAuthenticated, isAdmin } = useAuth();
   const { showError } = useError();
   const navigate = useNavigate();
   const [isLoading, setIsLoading] = React.useState(false);
 
   useEffect(() => {
     if (isAuthenticated) {
-      navigate('/dashboard');
+      if (isAdmin) {
+        navigate('/admin');
+      } else {
+        navigate('/dashboard');
+      }
     }
-  }, [isAuthenticated, navigate]);
+  }, [isAuthenticated, isAdmin, navigate]);
 
   const {
     register,
@@ -39,7 +43,11 @@ const LoginPage: React.FC = () => {
     try {
       const success = await login(data.username, data.password);
       if (success) {
-        navigate('/dashboard');
+        if (isAdmin) {
+          navigate('/admin');
+        } else {
+          navigate('/dashboard');
+        }
       } else {
         showError('ユーザー名またはパスワードが正しくありません。');
       }

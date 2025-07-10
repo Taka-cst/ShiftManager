@@ -11,6 +11,7 @@ import LandingPage from './pages/LandingPage';
 import LoginPage from './pages/LoginPage';
 import RegisterPage from './pages/RegisterPage';
 import Dashboard from './pages/Dashboard';
+import DashboardRedirector from './pages/DashboardRedirector';
 import ShiftRequestsPage from './pages/ShiftRequestsPage';
 import ShiftRequestFormPage from './pages/ShiftRequestFormPage';
 import ConfirmedShiftsPage from './pages/ConfirmedShiftsPage';
@@ -50,6 +51,15 @@ const App: React.FC = () => {
                 element={
                   <AuthGuard>
                     <Dashboard />
+                  </AuthGuard>
+                } 
+              />
+              {/* 管理者は一般ダッシュボードをスキップし、/adminへリダイレクト */}
+              <Route 
+                path="/dashboard" 
+                element={
+                  <AuthGuard>
+                    <DashboardRedirector />
                   </AuthGuard>
                 } 
               />
