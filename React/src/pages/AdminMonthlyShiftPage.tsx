@@ -709,6 +709,11 @@ const AdminMonthlyShiftPage: React.FC = () => {
     };
 
     const getStatusChip = (shift: DayShiftInfo) => {
+        // undefinedチェックを追加
+        if (!shift) {
+            return <Chip label="データなし" color="default" size="small" />;
+        }
+        
         // より厳密な確定済み判定
         if (shift.is_confirmed && shift.confirmed_shift_id) {
             return <Chip label="✅ 確定済み" color="success" size="small" sx={{ fontWeight: 'bold' }} />;
@@ -724,6 +729,23 @@ const AdminMonthlyShiftPage: React.FC = () => {
     };
 
     const renderTimeCell = (shift: DayShiftInfo, userId: number, date: string) => {
+        // undefinedチェックを追加
+        if (!shift) {
+            return (
+                <Box sx={{ 
+                    p: 1.5, 
+                    border: '2px dashed', 
+                    borderColor: 'grey.400', 
+                    borderRadius: 1, 
+                    bgcolor: 'grey.50'
+                }}>
+                    <Typography variant="body2" color="textSecondary">
+                        データなし
+                    </Typography>
+                </Box>
+            );
+        }
+
         const cellKey = `${userId}-${date}`;
         const isEditing = editingCells.has(cellKey);
 
@@ -1178,7 +1200,7 @@ const AdminMonthlyShiftPage: React.FC = () => {
                                                 <TableCell key={dateStr} sx={{ minWidth: 280, maxWidth: 280, verticalAlign: 'top', p: 1 }}>
                                                     <Box sx={{ mb: 1 }}>
                                                         {getStatusChip(shift)}
-                                                        {shift.description && (
+                                                        {shift && shift.description && (
                                                             <Tooltip title={`コメント: ${shift.description}`} arrow>
                                                                 <Info color="info" sx={{ ml: 1, fontSize: 16, cursor: 'pointer' }} />
                                                             </Tooltip>
