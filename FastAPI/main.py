@@ -44,8 +44,8 @@ app = FastAPI(title="シフト管理API", version="2.0.0")
 # CORS設定
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:3001"],
-    allow_credentials=True,
+    allow_origins=["*"],  # すべてのオリジンを許可
+    allow_credentials=False,  # 認証情報は送信されない
     allow_methods=["*"],
     allow_headers=["*"],
 )
