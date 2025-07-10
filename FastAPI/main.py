@@ -2,7 +2,7 @@
 from fastapi import FastAPI, Depends, HTTPException, status
 from fastapi.security import OAuth2PasswordBearer, OAuth2PasswordRequestForm
 from fastapi.middleware.cors import CORSMiddleware
-from sqlalchemy import create_engine, Column, Integer, String, Boolean, DateTime, Date, Text, ForeignKey, func
+from sqlalchemy import create_engine, Column, Integer, String, Boolean, DateTime, Date, Text, ForeignKey, func, delete
 from sqlalchemy.ext.declarative import declarative_base
 from sqlalchemy.orm import sessionmaker, Session, relationship
 from pydantic import BaseModel, validator, Field
@@ -11,6 +11,12 @@ from typing import Optional, List
 from passlib.context import CryptContext
 from jose import JWTError, jwt
 import os
+try:
+    from zoneinfo import ZoneInfo
+except ImportError:
+    # Python < 3.9の場合はpytzを使用
+    import pytz
+    ZoneInfo = None
 from dotenv import load_dotenv
 
 # 環境変数の読み込み
@@ -157,14 +163,15 @@ class ShiftRequest(ShiftRequestBase):
 # 確定シフト関連
 class ConfirmedShiftBase(BaseModel):
     date: date
-    start_time: datetime
-    end_time: datetime
+    start_time: str  # JSTのHH:mm文字列
+    end_time: str    # JSTのHH:mm文字列
 
 class ConfirmedShiftCreate(ConfirmedShiftBase):
     user_id: int
 
 class ConfirmedShift(ConfirmedShiftBase):
     id: int
+    user_id: int
     user: User
     
     class Config:
@@ -178,6 +185,104 @@ class DayOfWeekSettings(BaseModel):
     friday: bool = False
     saturday: bool = False
     sunday: bool = False
+
+# 時刻変換ヘルパー関数
+def to_jst_time_string(dt: datetime) -> str:
+    """UTC datetimeを日本時間のHH:mm文字列に変換"""
+    if ZoneInfo:
+        # Python 3.9以降
+        jst = ZoneInfo('Asia/Tokyo')
+        jst_dt = dt.replace(tzinfo=ZoneInfo('UTC')).astimezone(jst)
+    else:
+        # Python < 3.9
+        jst = pytz.timezone('Asia/Tokyo')
+        jst_dt = dt.replace(tzinfo=pytz.UTC).astimezone(jst)
+    return jst_dt.strftime('%H:%M')
+
+def from_time_string_to_utc_datetime(time_str: str, target_date: date) -> datetime:
+    """複数形式の時刻文字列（JST）を指定日と組み合わせてUTC datetimeに変換"""
+    print(f"🔧 時刻変換開始: time_str='{time_str}', target_date={target_date}")
+    
+    try:
+        # 1. ISO形式のdatetime文字列の場合（例: "2025-07-09T18:00:00.000Z"）
+        if 'T' in time_str and ('Z' in time_str or '+' in time_str or time_str.count(':') >= 2):
+            print(f"📅 ISO形式として処理: {time_str}")
+            # ISO形式をパースしてJSTとして扱う
+            dt = datetime.fromisoformat(time_str.replace('Z', '+00:00'))
+            # UTCからJSTに変換して時刻のみ取得
+            if ZoneInfo:
+                jst = ZoneInfo('Asia/Tokyo')
+                jst_dt = dt.replace(tzinfo=ZoneInfo('UTC')).astimezone(jst)
+            else:
+                jst = pytz.timezone('Asia/Tokyo')
+                jst_dt = dt.replace(tzinfo=pytz.UTC).astimezone(jst)
+            
+            # 指定日と組み合わせてJSTのdatetimeを作成
+            combined_dt = datetime.combine(target_date, jst_dt.time())
+            print(f"🕐 ISO→JST変換結果: {combined_dt}")
+            
+            # JSTからUTCに変換
+            if ZoneInfo:
+                jst_final = combined_dt.replace(tzinfo=ZoneInfo('Asia/Tokyo'))
+                utc_dt = jst_final.astimezone(ZoneInfo('UTC'))
+            else:
+                jst_final = pytz.timezone('Asia/Tokyo').localize(combined_dt)
+                utc_dt = jst_final.astimezone(pytz.UTC)
+            
+            result = utc_dt.replace(tzinfo=None)
+            print(f"✅ 最終結果（UTC）: {result}")
+            return result
+        
+        # 2. HH:mm形式の文字列の場合（例: "18:00"）
+        elif ':' in time_str and len(time_str.split(':')) == 2:
+            print(f"🕐 HH:mm形式として処理: {time_str}")
+            time_obj = datetime.strptime(time_str, '%H:%M').time()
+            
+            # 指定日と組み合わせてJSTのdatetimeを作成
+            if ZoneInfo:
+                jst = ZoneInfo('Asia/Tokyo')
+                jst_dt = datetime.combine(target_date, time_obj).replace(tzinfo=jst)
+                utc_dt = jst_dt.astimezone(ZoneInfo('UTC'))
+                result = utc_dt.replace(tzinfo=None)
+            else:
+                jst = pytz.timezone('Asia/Tokyo')
+                naive_dt = datetime.combine(target_date, time_obj)
+                jst_dt = jst.localize(naive_dt)
+                utc_dt = jst_dt.astimezone(pytz.UTC)
+                result = utc_dt.replace(tzinfo=None)
+            
+            print(f"✅ HH:mm変換結果（UTC）: {result}")
+            return result
+        
+        # 3. その他の形式は対応不可
+        else:
+            raise ValueError(f"サポートされていない時刻形式: {time_str}")
+            
+    except Exception as e:
+        print(f"❌ 時刻変換エラー: {e}")
+        raise ValueError(f"時刻の形式が正しくありません: {time_str}. HH:mm形式またはISO形式で入力してください。")
+
+def from_utc_to_jst_datetime(dt: datetime, target_date: date) -> datetime:
+    """UTCのdatetimeから日本時間の時刻を取得し、指定日と組み合わせてUTCに戻す"""
+    if ZoneInfo:
+        # Python 3.9以降
+        jst = ZoneInfo('Asia/Tokyo')
+        utc = ZoneInfo('UTC')
+        # UTCからJSTに変換
+        jst_dt = dt.replace(tzinfo=utc).astimezone(jst)
+        # 指定日と組み合わせて新しいdatetimeを作成
+        combined_dt = datetime.combine(target_date, jst_dt.time())
+        # JSTからUTCに変換して返す
+        return combined_dt.replace(tzinfo=jst).astimezone(utc).replace(tzinfo=None)
+    else:
+        # Python < 3.9
+        jst = pytz.timezone('Asia/Tokyo')
+        # UTCからJSTに変換
+        jst_dt = dt.replace(tzinfo=pytz.UTC).astimezone(jst)
+        # 指定日と組み合わせて新しいdatetimeを作成
+        combined_dt = datetime.combine(target_date, jst_dt.time())
+        # JSTからUTCに変換して返す
+        return combined_dt.replace(tzinfo=jst).astimezone(pytz.UTC).replace(tzinfo=None)
 
 # データベース接続
 def get_db():
@@ -539,9 +644,9 @@ def get_confirmed_shifts(
     current_user: UserModel = Depends(get_current_user), 
     db: Session = Depends(get_db)
 ):
-    """確定シフト一覧取得"""
-    # クエリ開始
-    query = db.query(ConfirmedShiftModel)
+    """確定シフト一覧取得（自分のもののみ）"""
+    # クエリ開始（自分のシフトのみ、ユーザー情報も含める）
+    query = db.query(ConfirmedShiftModel).join(UserModel).filter(ConfirmedShiftModel.user_id == current_user.id)
     
     # 年月フィルタリング
     if year is not None and month is not None:
@@ -561,12 +666,32 @@ def get_confirmed_shifts(
         
         # 日付でフィルタリング
         query = query.filter(
-            ConfirmedShift.date >= start_date,
-            ConfirmedShift.date < end_date
+            ConfirmedShiftModel.date >= start_date,
+            ConfirmedShiftModel.date < end_date
         )
     
-    # 結果を返す
-    return query.all()
+    # 結果を返す（日本時間に変換）
+    results = query.all()
+    
+    # Pydanticレスポンス用にリスト構築
+    response_shifts = []
+    for shift in results:
+        response_data = {
+            "id": shift.id,
+            "date": shift.date,
+            "start_time": to_jst_time_string(shift.start_time),
+            "end_time": to_jst_time_string(shift.end_time),
+            "user_id": shift.user_id,
+            "user": {
+                "id": shift.user.id,
+                "username": shift.user.username,
+                "DisplayName": shift.user.DisplayName,
+                "admin": shift.user.admin
+            }
+        }
+        response_shifts.append(ConfirmedShift(**response_data))
+    
+    return response_shifts
 
 # 管理者向けAPI
 @app.get("/api/v1/admin/shift-requests", response_model=List[ShiftRequest])
@@ -576,6 +701,73 @@ def get_all_shift_requests(admin_user: UserModel = Depends(get_admin_user), db: 
     for r in requests:
         r.user_display_name = r.user.DisplayName
     return requests
+
+@app.get("/api/v1/admin/confirmed-shifts", response_model=List[ConfirmedShift])
+def get_all_confirmed_shifts(
+    year: Optional[int] = None, 
+    month: Optional[int] = None,
+    admin_user: UserModel = Depends(get_admin_user), 
+    db: Session = Depends(get_db)
+):
+    """管理者用：全員の確定シフト一覧取得"""
+    # クエリ開始（ユーザー情報も含める）
+    query = db.query(ConfirmedShiftModel).join(UserModel)
+    
+    # 年月フィルタリング
+    if year is not None and month is not None:
+        # バリデーション
+        if month < 1 or month > 12:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST, 
+                detail="yearとmonthは1〜12の範囲で指定してください。"
+            )
+        
+        # 月初と月末を計算
+        start_date = date(year, month, 1)
+        if month == 12:
+            end_date = date(year + 1, 1, 1)
+        else:
+            end_date = date(year, month + 1, 1)
+        
+        # 日付でフィルタリング
+        query = query.filter(
+            ConfirmedShiftModel.date >= start_date,
+            ConfirmedShiftModel.date < end_date
+        )
+    
+    # 結果を返す（デバッグログ追加）
+    results = query.all()
+    print(f"管理者用確定シフト取得: 年={year}, 月={month}, 件数={len(results)}")
+    
+    # Pydanticレスポンス用にリスト構築
+    response_shifts = []
+    for shift in results:
+        # デバッグログ
+        print(f"  変換前: ID={shift.id}, ユーザーID={shift.user_id}, ユーザー名={shift.user.username}, 表示名={shift.user.DisplayName}, 日付={shift.date}, 開始={shift.start_time}, 終了={shift.end_time}")
+        
+        jst_start_time = to_jst_time_string(shift.start_time)
+        jst_end_time = to_jst_time_string(shift.end_time)
+        
+        print(f"  変換後: 開始={jst_start_time}, 終了={jst_end_time}")
+        
+        response_data = {
+            "id": shift.id,
+            "date": shift.date,
+            "start_time": jst_start_time,
+            "end_time": jst_end_time,
+            "user_id": shift.user_id,
+            "user": {
+                "id": shift.user.id,
+                "username": shift.user.username,
+                "DisplayName": shift.user.DisplayName,
+                "admin": shift.user.admin
+            }
+        }
+        response_shifts.append(ConfirmedShift(**response_data))
+    
+    print(f"📤 レスポンス確認: 最初のシフトのuser_id={response_shifts[0].user_id if response_shifts else 'なし'}")
+    
+    return response_shifts
 
 @app.post("/api/v1/admin/confirmed-shifts", response_model=ConfirmedShift, status_code=status.HTTP_201_CREATED)
 def create_confirmed_shift(shift: ConfirmedShiftCreate, admin_user: UserModel = Depends(get_admin_user), db: Session = Depends(get_db)):
@@ -588,11 +780,36 @@ def create_confirmed_shift(shift: ConfirmedShiftCreate, admin_user: UserModel = 
             detail="指定されたユーザーが見つかりません。"
         )
     
+    # 重複チェック
+    existing_shift = db.query(ConfirmedShiftModel).filter(
+        ConfirmedShiftModel.user_id == shift.user_id,
+        ConfirmedShiftModel.date == shift.date
+    ).first()
+    
+    # デバッグログ追加
+    print(f"確定シフト作成試行: user_id={shift.user_id}, date={shift.date}")
+    print(f"受信した時刻データ: start_time={shift.start_time}, end_time={shift.end_time}")
+    print(f"既存シフト検索結果: {existing_shift}")
+    if existing_shift:
+        print(f"既存シフト詳細: id={existing_shift.id}, date={existing_shift.date}, user_id={existing_shift.user_id}")
+    
+    if existing_shift:
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="この日付の確定シフトは既に存在します。"
+        )
+    
+    # 時刻を日本時間として扱うため、日付部分を指定日に設定
+    start_time_final = from_time_string_to_utc_datetime(shift.start_time, shift.date)
+    end_time_final = from_time_string_to_utc_datetime(shift.end_time, shift.date)
+    
+    print(f"保存する時刻: start_time={start_time_final}, end_time={end_time_final}")
+    
     # 確定シフト作成
     db_shift = ConfirmedShiftModel(
         date=shift.date,
-        start_time=shift.start_time,
-        end_time=shift.end_time,
+        start_time=start_time_final,
+        end_time=end_time_final,
         user_id=shift.user_id
     )
     
@@ -600,12 +817,30 @@ def create_confirmed_shift(shift: ConfirmedShiftCreate, admin_user: UserModel = 
     db.commit()
     db.refresh(db_shift)
     
-    return db_shift
+    # ユーザー情報を確実にロードするため、再クエリ
+    created_shift = db.query(ConfirmedShiftModel).join(UserModel).filter(ConfirmedShiftModel.id == db_shift.id).first()
+    
+    # Pydanticレスポンス用に辞書形式で構築
+    response_data = {
+        "id": created_shift.id,
+        "date": created_shift.date,
+        "start_time": to_jst_time_string(created_shift.start_time),
+        "end_time": to_jst_time_string(created_shift.end_time),
+        "user_id": created_shift.user_id,
+        "user": {
+            "id": created_shift.user.id,
+            "username": created_shift.user.username,
+            "DisplayName": created_shift.user.DisplayName,
+            "admin": created_shift.user.admin
+        }
+    }
+    
+    return ConfirmedShift(**response_data)
 
 @app.put("/api/v1/admin/confirmed-shifts/{shift_id}", response_model=ConfirmedShift)
 def update_confirmed_shift(shift_id: int, shift: ConfirmedShiftCreate, admin_user: UserModel = Depends(get_admin_user), db: Session = Depends(get_db)):
     """確定シフトの更新"""
-    db_shift = db.query(ConfirmedShift).filter(ConfirmedShiftModel.id == shift_id).first()
+    db_shift = db.query(ConfirmedShiftModel).filter(ConfirmedShiftModel.id == shift_id).first()
     
     if not db_shift:
         raise HTTPException(
@@ -621,16 +856,42 @@ def update_confirmed_shift(shift_id: int, shift: ConfirmedShiftCreate, admin_use
             detail="指定されたユーザーが見つかりません。"
         )
     
+    # 時刻を日本時間として扱うため、適切に変換
+    start_time_final = from_time_string_to_utc_datetime(shift.start_time, shift.date)
+    end_time_final = from_time_string_to_utc_datetime(shift.end_time, shift.date)
+    
+    print(f"確定シフト更新: shift_id={shift_id}")
+    print(f"受信した時刻データ: start_time={shift.start_time}, end_time={shift.end_time}")
+    print(f"保存する時刻: start_time={start_time_final}, end_time={end_time_final}")
+    
     # 更新
     db_shift.date = shift.date
-    db_shift.start_time = shift.start_time
-    db_shift.end_time = shift.end_time
+    db_shift.start_time = start_time_final
+    db_shift.end_time = end_time_final
     db_shift.user_id = shift.user_id
     
     db.commit()
     db.refresh(db_shift)
     
-    return db_shift
+    # ユーザー情報を含めて再クエリ
+    updated_shift = db.query(ConfirmedShiftModel).join(UserModel).filter(ConfirmedShiftModel.id == shift_id).first()
+    
+    # Pydanticレスポンス用に辞書形式で構築
+    response_data = {
+        "id": updated_shift.id,
+        "date": updated_shift.date,
+        "start_time": to_jst_time_string(updated_shift.start_time),
+        "end_time": to_jst_time_string(updated_shift.end_time),
+        "user_id": updated_shift.user_id,
+        "user": {
+            "id": updated_shift.user.id,
+            "username": updated_shift.user.username,
+            "DisplayName": updated_shift.user.DisplayName,
+            "admin": updated_shift.user.admin
+        }
+    }
+    
+    return ConfirmedShift(**response_data)
 
 @app.delete("/api/v1/admin/confirmed-shifts/{shift_id}", response_model=MessageResponse)
 def delete_confirmed_shift(shift_id: int, admin_user: UserModel = Depends(get_admin_user), db: Session = Depends(get_db)):
@@ -676,7 +937,7 @@ def delete_user(user_id: int, admin_user: UserModel = Depends(get_admin_user), d
     
     # 関連するデータも削除
     db.query(ShiftRequestModel).filter(ShiftRequestModel.user_id == user_id).delete()
-    db.query(ConfirmedShift).filter(ConfirmedShift.user_id == user_id).delete()
+    db.execute(delete(ConfirmedShiftModel).where(ConfirmedShiftModel.user_id == user_id))
     db.delete(user)
     db.commit()
     

@@ -11,12 +11,40 @@ import { NavigateBefore, NavigateNext } from '@mui/icons-material';
 import { format, startOfWeek, addWeeks, subWeeks } from 'date-fns';
 import { ja } from 'date-fns/locale';
 import ShiftTable from '../components/ShiftTable';
+import { confirmedShiftAPI } from '../services/api';
+import { useError } from '../contexts/ErrorContext';
+import { ConfirmedShift, User } from '../types';
 
 const ConfirmedShiftsPage: React.FC = () => {
   const [currentWeek, setCurrentWeek] = useState(startOfWeek(new Date(), { weekStartsOn: 1 }));
   const [viewMode, setViewMode] = useState<'week' | 'month'>('week');
-  const [shifts, setShifts] = useState([]);
-  const [users, setUsers] = useState([]);
+  const [shifts, setShifts] = useState<ConfirmedShift[]>([]);
+  const [users, setUsers] = useState<User[]>([]);
+  const [loading, setLoading] = useState(true);
+  const { showError } = useError();
+
+  useEffect(() => {
+    loadConfirmedShifts();
+  }, [currentWeek]);
+
+  const loadConfirmedShifts = async () => {
+    try {
+      setLoading(true);
+      const currentYear = currentWeek.getFullYear();
+      const currentMonth = currentWeek.getMonth() + 1;
+      
+      // 確定シフトデータを取得（自分のもののみ）
+      const shiftsData = await confirmedShiftAPI.getConfirmedShifts(currentYear, currentMonth);
+      
+      setShifts(shiftsData);
+      // ユーザーリストは不要（自分のシフトのみ表示のため）
+      setUsers([]);
+    } catch (error) {
+      showError('確定シフトの取得に失敗しました😭');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const handlePreviousWeek = () => {
     setCurrentWeek(subWeeks(currentWeek, 1));

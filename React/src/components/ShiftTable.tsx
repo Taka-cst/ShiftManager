@@ -17,7 +17,7 @@ import { ja } from 'date-fns/locale';
 interface ShiftTableProps {
   mode: 'confirmed' | 'request';
   weekStart: Date;
-  users?: Array<{ id: number; DisplayName: string; IsAdmin: boolean }>;
+  users?: Array<{ id: number; DisplayName: string; admin: boolean }>;
   shifts?: Array<{
     date: string;
     user_id: number;
@@ -36,7 +36,7 @@ const ShiftTable: React.FC<ShiftTableProps> = ({
   onTimeChange,
 }) => {
   const weekDays = Array.from({ length: 7 }, (_, i) => addDays(weekStart, i));
-  const nonAdminUsers = users.filter(user => !user.IsAdmin);
+  const nonAdminUsers = users.filter(user => !user.admin);
 
   const getShiftForUserAndDate = (userId: number, date: Date) => {
     return shifts.find(shift => 

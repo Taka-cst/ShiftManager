@@ -1,4 +1,4 @@
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   Container,
   Typography,
@@ -8,12 +8,52 @@ import {
   CardContent,
   Button,
   CardActions,
+  CircularProgress,
+  Chip,
 } from '@mui/material';
-import { People, Assignment, CalendarToday, Settings, DateRange } from '@mui/icons-material';
+import { People, Assignment, CalendarToday, Settings, DateRange, TrendingUp } from '@mui/icons-material';
 import { useNavigate } from 'react-router-dom';
+import { adminAPI, confirmedShiftAPI } from '../services/api';
+import { useError } from '../contexts/ErrorContext';
+import { User, ShiftRequest, ConfirmedShift } from '../types';
 
 const AdminDashboard: React.FC = () => {
   const navigate = useNavigate();
+  const { showError } = useError();
+  const [loading, setLoading] = useState(true);
+  const [stats, setStats] = useState({
+    totalUsers: 0,
+    totalShiftRequests: 0,
+    confirmedShifts: 0,
+  });
+
+  useEffect(() => {
+    loadDashboardStats();
+  }, []);
+
+  const loadDashboardStats = async () => {
+    try {
+      setLoading(true);
+      const [usersData, shiftRequestsData, confirmedShiftsData] = await Promise.all([
+        adminAPI.getAllUsers(),
+        adminAPI.getAllShiftRequests(),
+        confirmedShiftAPI.getAllConfirmedShifts()
+      ]);
+
+      // 管理者以外のユーザー数をカウント
+      const nonAdminUsers = usersData.filter(user => !user.admin);
+
+      setStats({
+        totalUsers: nonAdminUsers.length,
+        totalShiftRequests: shiftRequestsData.length,
+        confirmedShifts: confirmedShiftsData.length,
+      });
+    } catch (error) {
+      showError('統計情報の取得に失敗しました😭');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const adminMenuItems = [
     {
@@ -61,6 +101,65 @@ const AdminDashboard: React.FC = () => {
         </Typography>
         <Typography variant="body1" color="textSecondary" paragraph>
           管理者機能を利用してシフト管理を行ってください。
+        </Typography>
+      </Box>
+
+      {/* 統計情報カード */}
+      <Box sx={{ mb: 4 }}>
+        <Typography variant="h6" gutterBottom>
+          <TrendingUp sx={{ mr: 1, verticalAlign: 'middle' }} />
+          システム統計
+        </Typography>
+        {loading ? (
+          <Box display="flex" justifyContent="center" p={3}>
+            <CircularProgress />
+          </Box>
+        ) : (
+          <Grid container spacing={2}>
+            <Grid item xs={12} sm={4}>
+              <Card sx={{ textAlign: 'center', bgcolor: 'primary.main', color: 'white' }}>
+                <CardContent>
+                  <Typography variant="h3" component="div">
+                    {stats.totalUsers}
+                  </Typography>
+                  <Typography variant="body2">
+                    登録ユーザー数
+                  </Typography>
+                </CardContent>
+              </Card>
+            </Grid>
+            <Grid item xs={12} sm={4}>
+              <Card sx={{ textAlign: 'center', bgcolor: 'secondary.main', color: 'white' }}>
+                <CardContent>
+                  <Typography variant="h3" component="div">
+                    {stats.totalShiftRequests}
+                  </Typography>
+                  <Typography variant="body2">
+                    シフト希望件数
+                  </Typography>
+                </CardContent>
+              </Card>
+            </Grid>
+            <Grid item xs={12} sm={4}>
+              <Card sx={{ textAlign: 'center', bgcolor: 'success.main', color: 'white' }}>
+                <CardContent>
+                  <Typography variant="h3" component="div">
+                    {stats.confirmedShifts}
+                  </Typography>
+                  <Typography variant="body2">
+                    確定シフト件数
+                  </Typography>
+                </CardContent>
+              </Card>
+            </Grid>
+          </Grid>
+        )}
+      </Box>
+
+      {/* 管理機能メニュー */}
+      <Box sx={{ mb: 2 }}>
+        <Typography variant="h6" gutterBottom>
+          管理機能メニュー
         </Typography>
       </Box>
 

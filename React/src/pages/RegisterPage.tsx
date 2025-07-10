@@ -36,6 +36,7 @@ const RegisterPage: React.FC = () => {
       });
       navigate('/login', {
         state: { message: '登録が完了しました。ログインしてください。' }
+        
       });
     } catch (error: any) {
       if (error.response?.data?.detail) {

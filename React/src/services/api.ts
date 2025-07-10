@@ -136,6 +136,16 @@ export const confirmedShiftAPI = {
     const response = await api.get<ConfirmedShift[]>(`/confirmed-shifts/?${params}`);
     return response.data;
   },
+
+  // 管理者用：全員の確定シフト取得
+  getAllConfirmedShifts: async (year?: number, month?: number): Promise<ConfirmedShift[]> => {
+    const params = new URLSearchParams();
+    if (year) params.append('year', year.toString());
+    if (month) params.append('month', month.toString());
+    
+    const response = await api.get<ConfirmedShift[]>(`/admin/confirmed-shifts?${params}`);
+    return response.data;
+  },
 };
 
 // Admin API

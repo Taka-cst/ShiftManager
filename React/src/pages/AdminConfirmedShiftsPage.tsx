@@ -101,7 +101,7 @@ const AdminConfirmedShiftsPage: React.FC = () => {
     try {
       setLoading(true);
       const [shiftsData, requestsData] = await Promise.all([
-        confirmedShiftAPI.getConfirmedShifts(),
+        confirmedShiftAPI.getAllConfirmedShifts(),
         adminAPI.getAllShiftRequests()
       ]);
       setShifts(shiftsData);
@@ -153,8 +153,8 @@ const AdminConfirmedShiftsPage: React.FC = () => {
     try {
       const shiftData: ConfirmedShiftCreate = {
         date: quickCreateDialog.request.date,
-        start_time: quickCreateDialog.start_time.toISOString(),
-        end_time: quickCreateDialog.end_time.toISOString(),
+        start_time: format(quickCreateDialog.start_time, 'HH:mm'),  // HH:mm形式
+        end_time: format(quickCreateDialog.end_time, 'HH:mm'),      // HH:mm形式
         user_id: quickCreateDialog.request.user_id,
       };
 
@@ -184,8 +184,8 @@ const AdminConfirmedShiftsPage: React.FC = () => {
     try {
       const shiftData: ConfirmedShiftCreate = {
         date: format(newShift.date, 'yyyy-MM-dd'),
-        start_time: newShift.start_time.toISOString(),
-        end_time: newShift.end_time.toISOString(),
+        start_time: format(newShift.start_time, 'HH:mm'),  // HH:mm形式
+        end_time: format(newShift.end_time, 'HH:mm'),      // HH:mm形式
         user_id: parseInt(newShift.user_id),
       };
 
@@ -415,7 +415,48 @@ const AdminConfirmedShiftsPage: React.FC = () => {
                           />
                         </TableCell>
                         <TableCell>
-                          {format(new Date(shift.start_time), 'HH:mm')} - {format(new Date(shift.end_time), 'HH:mm')}
+                          {(() => {
+                            // 時刻表示の修正：UTCから日本時間への適切な変換
+                            let startTimeDisplay: string;
+                            let endTimeDisplay: string;
+                            
+                            try {
+                              if (typeof shift.start_time === 'string') {
+                                if (shift.start_time.includes('T')) {
+                                  // ISO形式の場合、時刻部分のみ抽出
+                                  const startDate = new Date(shift.start_time);
+                                  startTimeDisplay = format(startDate, 'HH:mm');
+                                } else if (shift.start_time.match(/^\d{2}:\d{2}$/)) {
+                                  // 既に "HH:mm" 形式の場合
+                                  startTimeDisplay = shift.start_time;
+                                } else {
+                                  // その他の形式
+                                  startTimeDisplay = shift.start_time;
+                                }
+                              } else {
+                                startTimeDisplay = format(new Date(shift.start_time), 'HH:mm');
+                              }
+                              
+                              if (typeof shift.end_time === 'string') {
+                                if (shift.end_time.includes('T')) {
+                                  const endDate = new Date(shift.end_time);
+                                  endTimeDisplay = format(endDate, 'HH:mm');
+                                } else if (shift.end_time.match(/^\d{2}:\d{2}$/)) {
+                                  endTimeDisplay = shift.end_time;
+                                } else {
+                                  endTimeDisplay = shift.end_time;
+                                }
+                              } else {
+                                endTimeDisplay = format(new Date(shift.end_time), 'HH:mm');
+                              }
+                            } catch (error) {
+                              console.error('時刻表示エラー:', error, shift);
+                              startTimeDisplay = '??:??';
+                              endTimeDisplay = '??:??';
+                            }
+                            
+                            return `${startTimeDisplay} - ${endTimeDisplay}`;
+                          })()}
                         </TableCell>
                         <TableCell>
                           <IconButton
@@ -621,12 +662,31 @@ const AdminConfirmedShiftsPage: React.FC = () => {
                 <Box display="flex" gap={2} mt={2}>
                   <TimePicker
                     label="開始時間"
-                    value={new Date(editDialog.shift.start_time)}
+                    value={(() => {
+                      // 編集ダイアログでの時刻処理を修正
+                      try {
+                        if (typeof editDialog.shift.start_time === 'string') {
+                          if (editDialog.shift.start_time.includes('T')) {
+                            return new Date(editDialog.shift.start_time);
+                          } else if (editDialog.shift.start_time.match(/^\d{2}:\d{2}$/)) {
+                            // "HH:mm" 形式の場合、今日の日付と組み合わせて Date オブジェクトを作成
+                            const today = new Date();
+                            const [hours, minutes] = editDialog.shift.start_time.split(':');
+                            today.setHours(parseInt(hours), parseInt(minutes), 0, 0);
+                            return today;
+                          }
+                        }
+                        return new Date(editDialog.shift.start_time);
+                      } catch (error) {
+                        console.error('開始時間パースエラー:', error, editDialog.shift.start_time);
+                        return new Date();
+                      }
+                    })()}
                     onChange={(newValue) => {
                       if (newValue && editDialog.shift) {
                         setEditDialog({
                           ...editDialog,
-                          shift: { ...editDialog.shift, start_time: newValue.toISOString() }
+                          shift: { ...editDialog.shift, start_time: format(newValue, 'HH:mm') }
                         });
                       }
                     }}
@@ -641,12 +701,29 @@ const AdminConfirmedShiftsPage: React.FC = () => {
 
                   <TimePicker
                     label="終了時間"
-                    value={new Date(editDialog.shift.end_time)}
+                    value={(() => {
+                      try {
+                        if (typeof editDialog.shift.end_time === 'string') {
+                          if (editDialog.shift.end_time.includes('T')) {
+                            return new Date(editDialog.shift.end_time);
+                          } else if (editDialog.shift.end_time.match(/^\d{2}:\d{2}$/)) {
+                            const today = new Date();
+                            const [hours, minutes] = editDialog.shift.end_time.split(':');
+                            today.setHours(parseInt(hours), parseInt(minutes), 0, 0);
+                            return today;
+                          }
+                        }
+                        return new Date(editDialog.shift.end_time);
+                      } catch (error) {
+                        console.error('終了時間パースエラー:', error, editDialog.shift.end_time);
+                        return new Date();
+                      }
+                    })()}
                     onChange={(newValue) => {
                       if (newValue && editDialog.shift) {
                         setEditDialog({
                           ...editDialog,
-                          shift: { ...editDialog.shift, end_time: newValue.toISOString() }
+                          shift: { ...editDialog.shift, end_time: format(newValue, 'HH:mm') }
                         });
                       }
                     }}
