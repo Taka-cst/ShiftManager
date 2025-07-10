@@ -47,9 +47,7 @@ const Navbar: React.FC = () => {
 
         {isAuthenticated ? (
           <Box sx={{ display: 'flex', alignItems: 'center' }}>
-            <Button color="inherit" onClick={() => navigate('/dashboard')}>
-              ダッシュボード
-            </Button>
+
             {isAdmin ? (
               <>
                 <Button color="inherit" onClick={() => navigate('/admin/monthly-shifts')}>
@@ -61,6 +59,9 @@ const Navbar: React.FC = () => {
               </>
             ) : (
               <>
+                <Button color="inherit" onClick={() => navigate('/dashboard')}>
+                  ダッシュボード
+                </Button>
                 <Button color="inherit" onClick={() => navigate('/shift-requests')}>
                   シフト希望
                 </Button>
@@ -69,7 +70,7 @@ const Navbar: React.FC = () => {
                 </Button>
               </>
             )}
-            
+
             <IconButton
               size="large"
               aria-label="account of current user"

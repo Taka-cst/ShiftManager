@@ -64,25 +64,11 @@ const AdminDashboard: React.FC = () => {
       color: 'primary.main',
     },
     {
-      title: 'シフト希望一覧',
-      description: '全ユーザーのシフト希望を確認し、確定できます。',
-      icon: <Assignment fontSize="large" />,
-      action: () => navigate('/admin/shift-requests'),
-      color: 'secondary.main',
-    },
-    {
       title: '月間シフト管理',
       description: '表形式で授業日のシフトを管理します。',
       icon: <DateRange fontSize="large" />,
       action: () => navigate('/admin/monthly-shifts'),
       color: 'info.main',
-    },
-    {
-      title: '確定シフト管理',
-      description: 'シフトの確定・編集・削除を行います。',
-      icon: <CalendarToday fontSize="large" />,
-      action: () => navigate('/admin/confirmed-shifts'),
-      color: 'success.main',
     },
     {
       title: '授業曜日設定',
@@ -215,9 +201,7 @@ const AdminDashboard: React.FC = () => {
         </Typography>
         <Typography variant="body2" color="textSecondary">
           <strong>月間シフト管理</strong>: 表形式で授業日のシフトを直接編集できます。管理者は表示されません。<br/>
-          <strong>シフト希望一覧</strong>: ユーザーが提出したシフト希望を確認し、確定シフトを作成できます。<br/>
           <strong>ユーザー管理</strong>: 登録されているユーザーの一覧表示や削除ができます。<br/>
-          <strong>確定シフト管理</strong>: 作成済みの確定シフトの確認・編集・削除ができます。<br/>
           <strong>授業曜日設定</strong>: 授業がある曜日を設定できます。
         </Typography>
       </Box>

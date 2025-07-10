@@ -16,11 +16,9 @@ import ShiftRequestsPage from './pages/ShiftRequestsPage';
 import ShiftRequestFormPage from './pages/ShiftRequestFormPage';
 import ConfirmedShiftsPage from './pages/ConfirmedShiftsPage';
 import AdminDashboard from './pages/AdminDashboard';
-import AdminShiftRequestsPage from './pages/AdminShiftRequestsPage';
 import AdminUsersPage from './pages/AdminUsersPage';
 import AdminDayOfWeekSettingsPage from './pages/AdminDayOfWeekSettingsPage';
 import AdminMonthlyShiftPage from './pages/AdminMonthlyShiftPage';
-import AdminConfirmedShiftsPage from './pages/AdminConfirmedShiftsPage';
 
 const theme = createTheme({
   palette: {
@@ -103,47 +101,31 @@ const App: React.FC = () => {
                   </AuthGuard>
                 } 
               />
-
-                  <Route path="/admin/shift-requests" 
-                    element={
-                      <AuthGuard adminOnly>
-                        <AdminShiftRequestsPage />
-                      </AuthGuard>
-                    }  
-                  />
-                  <Route
-                    path="/admin/monthly-shifts"
-                    element={
-                      <AuthGuard adminOnly>
-                        <AdminMonthlyShiftPage />
-                      </AuthGuard>
-                    }
-                  />
-                  <Route
-                path="/admin/confirmed-shifts"
+              <Route
+                path="/admin/monthly-shifts"
                 element={
                   <AuthGuard adminOnly>
-                    <AdminConfirmedShiftsPage />
+                    <AdminMonthlyShiftPage />
                   </AuthGuard>
                 }
               />
-  <Route 
-    path="/admin/users" 
-    element={
-        <AuthGuard adminOnly>
-        <AdminUsersPage />
-      </AuthGuard>
-    } 
-  />
-  <Route 
-  path="/admin/settings" 
-  element={
-    <AuthGuard adminOnly>
-      <AdminDayOfWeekSettingsPage />
-    </AuthGuard>
-  } 
-/>
-    <Route path="*" element={<Navigate to="/" replace />} />
+              <Route 
+                path="/admin/users" 
+                element={
+                  <AuthGuard adminOnly>
+                    <AdminUsersPage />
+                  </AuthGuard>
+                } 
+              />
+              <Route 
+                path="/admin/settings" 
+                element={
+                  <AuthGuard adminOnly>
+                    <AdminDayOfWeekSettingsPage />
+                  </AuthGuard>
+                } 
+              />
+              <Route path="*" element={<Navigate to="/" replace />} />
 
             </Routes>
           </Router>
