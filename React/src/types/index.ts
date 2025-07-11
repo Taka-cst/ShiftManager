@@ -44,6 +44,7 @@ export interface ConfirmedShift {
   end_time: string;
   user_id: number;
   user_display_name?: string;
+  user?: User;
 }
 
 export interface ConfirmedShiftCreate {

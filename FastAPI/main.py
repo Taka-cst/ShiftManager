@@ -44,8 +44,21 @@ app = FastAPI(title="シフト管理API", version="2.0.0")
 # CORS設定
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # すべてのオリジンを許可
-    allow_credentials=False,  # 認証情報は送信されない
+    allow_origins=[
+        "https://expt.taka-sec.com",
+        "http://expt.taka-sec.com", 
+        "https://expt.taka-sec.com:9876",
+        "http://expt.taka-sec.com:9876",
+        "https://localhost:4567",
+        "http://localhost:4567",
+        "https://localhost:80",
+        "http://localhost:80",
+        "https://localhost:9876",
+        "http://localhost:9876",
+        "https://localhost:3001",
+        "http://localhost:3001"
+    ],
+    allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"],
 )
@@ -681,6 +694,67 @@ def get_confirmed_shifts(
             "date": shift.date,
             "start_time": to_jst_time_string(shift.start_time),
             "end_time": to_jst_time_string(shift.end_time),
+            "user_id": shift.user_id,
+            "user": {
+                "id": shift.user.id,
+                "username": shift.user.username,
+                "DisplayName": shift.user.DisplayName,
+                "admin": shift.user.admin
+            }
+        }
+        response_shifts.append(ConfirmedShift(**response_data))
+    
+    return response_shifts
+
+# 確定シフトAPI（一般ユーザー向け全員表示用を追加）
+@app.get("/api/v1/confirmed-shifts/all", response_model=List[ConfirmedShift])
+def get_all_confirmed_shifts_for_users(
+    year: Optional[int] = None, 
+    month: Optional[int] = None,
+    current_user: UserModel = Depends(get_current_user), 
+    db: Session = Depends(get_db)
+):
+    """一般ユーザー向け：全員の確定シフト一覧取得（読み取り専用）"""
+    # クエリ開始（ユーザー情報も含める）
+    query = db.query(ConfirmedShiftModel).join(UserModel)
+    
+    # 年月フィルタリング
+    if year is not None and month is not None:
+        # バリデーション
+        if month < 1 or month > 12:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST, 
+                detail="yearとmonthは1〜12の範囲で指定してください。"
+            )
+        
+        # 月初と月末を計算
+        start_date = date(year, month, 1)
+        if month == 12:
+            end_date = date(year + 1, 1, 1)
+        else:
+            end_date = date(year, month + 1, 1)
+        
+        # 日付でフィルタリング
+        query = query.filter(
+            ConfirmedShiftModel.date >= start_date,
+            ConfirmedShiftModel.date < end_date
+        )
+    
+    # 結果を返す
+    results = query.all()
+    print(f"一般ユーザー用確定シフト取得: 年={year}, 月={month}, 件数={len(results)}")
+    
+    # Pydanticレスポンス用にリスト構築
+    response_shifts = []
+    for shift in results:
+        jst_start_time = to_jst_time_string(shift.start_time)
+        jst_end_time = to_jst_time_string(shift.end_time)
+        
+        response_data = {
+            "id": shift.id,
+            "date": shift.date,
+            "start_time": jst_start_time,
+            "end_time": jst_end_time,
             "user_id": shift.user_id,
             "user": {
                 "id": shift.user.id,

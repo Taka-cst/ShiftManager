@@ -12,7 +12,7 @@ import {
 } from '../types';
 
 // API Base URL
-const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://localhost:4567/api/v1';
+const API_BASE_URL = process.env.REACT_APP_API_URL || 'http://expt.taka-sec.com/api/v1';
 
 // Axios instance
 const api = axios.create({
@@ -134,6 +134,16 @@ export const confirmedShiftAPI = {
     if (month) params.append('month', month.toString());
     
     const response = await api.get<ConfirmedShift[]>(`/confirmed-shifts/?${params}`);
+    return response.data;
+  },
+
+  // 一般ユーザー向け：全員の確定シフト取得（読み取り専用）
+  getAllConfirmedShiftsForUsers: async (year?: number, month?: number): Promise<ConfirmedShift[]> => {
+    const params = new URLSearchParams();
+    if (year) params.append('year', year.toString());
+    if (month) params.append('month', month.toString());
+    
+    const response = await api.get<ConfirmedShift[]>(`/confirmed-shifts/all?${params}`);
     return response.data;
   },
 
