@@ -713,3 +713,260 @@ start_time: format(shift.temp_start_time, 'HH:mm'),
 
 #### 💡 **分析結果**
 ShiftManagerアプリケーションは**約5,450行**の実コードで構成されており、非常にコンパクトで効率的なWebアプリケーションです。フロントエンド（React）が約83%、バックエンド（FastAPI）が約17%の構成比となっています。
+
+---
+
+## 📋 テストケース設計（2025年7月17日）
+
+**タスク**: シフト管理アプリケーションの単体テストケースを作成（フロントエンド・バックエンド各24件）
+
+### 🔧 バックエンド（FastAPI）テストケース
+
+| # | テスト対象 | テスト観点 | テスト条件 | テスト手順 (1 行) | 期待値 (1 行) | 結果 (○/✕) |
+|---|---|---|---|---|---|---|
+| 1 | ユーザー登録API | 正常系 | 有効なユーザー情報での登録 | POST /api/v1/auth/register で有効なusername, DisplayName, passwordを送信 | 201 Created、ユーザー情報がレスポンスで返る | |
+| 2 | ログインAPI | 正常系 | 正しい認証情報でのログイン | POST /api/v1/auth/login で正しいusername, passwordを送信 | 200 OK、JWTトークンが返る | |
+| 3 | シフト希望登録API | 正常系 | 有効なシフト希望の登録 | POST /api/v1/shift-requests/ で有効な日付とcanworkを送信 | 201 Created、シフト希望が正常に作成される | |
+| 4 | シフト希望一覧取得API | 正常系 | 自分のシフト希望一覧取得 | GET /api/v1/shift-requests/ を認証済みユーザーで実行 | 200 OK、自分のシフト希望リストが返る | |
+| 5 | シフト希望更新API | 正常系 | 既存シフト希望の更新 | PUT /api/v1/shift-requests/{id} で有効な更新データを送信 | 200 OK、更新されたシフト希望が返る | |
+| 6 | 確定シフト一覧取得API | 正常系 | 全員の確定シフト取得 | GET /api/v1/confirmed-shifts/all を認証済みユーザーで実行 | 200 OK、全員の確定シフトリストが返る | |
+| 7 | 管理者権限チェック | 正常系 | 管理者による確定シフト作成 | POST /api/v1/admin/confirmed-shifts を管理者権限で実行 | 201 Created、確定シフトが作成される | |
+| 8 | ユーザー情報取得API | 正常系 | 認証済みユーザーの情報取得 | GET /api/v1/auth/me を有効なJWTトークンで実行 | 200 OK、ユーザー情報が返る | |
+| 9 | ユーザー名バリデーション | 境界入力 | 最小文字数（2文字）のユーザー名 | POST /api/v1/auth/register でusername="ab"を送信 | 201 Created、正常に登録される | |
+| 10 | ユーザー名バリデーション | 境界入力 | 最大文字数（20文字）のユーザー名 | POST /api/v1/auth/register でusername="12345678901234567890"を送信 | 201 Created、正常に登録される | |
+| 11 | 表示名バリデーション | 境界入力 | 最小文字数（1文字）の表示名 | POST /api/v1/auth/register でDisplayName="a"を送信 | 201 Created、正常に登録される | |
+| 12 | 表示名バリデーション | 境界入力 | 最大文字数（20文字）の表示名 | POST /api/v1/auth/register でDisplayName="12345678901234567890"を送信 | 201 Created、正常に登録される | |
+| 13 | シフト希望説明文 | 境界入力 | 最大文字数（200文字）の説明文 | POST /api/v1/shift-requests/ で200文字の説明文を送信 | 201 Created、説明文付きでシフト希望が作成される | |
+| 14 | 年月指定クエリ | 境界入力 | 月の最小値（1月）での検索 | GET /api/v1/shift-requests/?month=1 で実行 | 200 OK、1月のデータのみ返る | |
+| 15 | 年月指定クエリ | 境界入力 | 月の最大値（12月）での検索 | GET /api/v1/shift-requests/?month=12 で実行 | 200 OK、12月のデータのみ返る | |
+| 16 | 空の説明文 | 境界入力 | 説明文がnullのシフト希望 | POST /api/v1/shift-requests/ でdescription=nullを送信 | 201 Created、説明文なしでシフト希望が作成される | |
+| 17 | 無効な認証トークン | 異常系 | 期限切れ・無効なJWTトークン | 無効なトークンでGET /api/v1/shift-requests/を実行 | 401 Unauthorized、認証エラーが返る | |
+| 18 | 重複ユーザー名登録 | 異常系 | 既存ユーザー名での登録試行 | 既に存在するusernameでPOST /api/v1/auth/registerを実行 | 409 Conflict、重複エラーが返る | |
+| 19 | 間違った認証情報 | 異常系 | 存在しないユーザーでのログイン | POST /api/v1/auth/login で存在しないusernameを送信 | 401 Unauthorized、認証失敗が返る | |
+| 20 | 権限不足アクセス | 異常系 | 一般ユーザーによる管理者API実行 | 一般ユーザーでPOST /api/v1/admin/confirmed-shiftsを実行 | 403 Forbidden、権限エラーが返る | |
+| 21 | 存在しないリソース | 異常系 | 存在しないシフト希望IDでの取得 | GET /api/v1/shift-requests/99999 で実行 | 404 Not Found、リソースが見つからないエラー | |
+| 22 | 不正な日付形式 | 異常系 | 無効な日付でのシフト希望登録 | POST /api/v1/shift-requests/ でdate="invalid-date"を送信 | 422 Unprocessable Entity、バリデーションエラー | |
+| 23 | 他人のリソースアクセス | 異常系 | 他ユーザーのシフト希望更新試行 | PUT /api/v1/shift-requests/{他人のID} で更新試行 | 403 Forbidden、権限エラーが返る | |
+| 24 | データベース接続エラー | 異常系 | DB接続失敗時のAPI実行 | DB接続が切断された状態でAPIを実行 | 500 Internal Server Error、サーバーエラーが返る | |
+
+### 🎨 フロントエンド（React）テストケース
+
+| # | テスト対象 | テスト観点 | テスト条件 | テスト手順 (1 行) | 期待値 (1 行) | 結果 (○/✕) |
+|---|---|---|---|---|---|---|
+| 1 | ログインページ | 正常系 | 有効な認証情報でのログイン | ログインフォームに正しいusername, passwordを入力してSubmit | ダッシュボードページへリダイレクトされる | |
+| 2 | ユーザー登録ページ | 正常系 | 有効な情報でのユーザー登録 | 登録フォームに有効なusername, DisplayName, passwordを入力してSubmit | 登録成功メッセージが表示される | |
+| 3 | シフト希望フォーム | 正常系 | シフト希望の新規作成 | シフト希望フォームで日付、勤務可否、説明文を入力してSubmit | シフト希望が正常に作成され、一覧ページに表示される | |
+| 4 | カレンダーコンポーネント | 正常系 | 月間カレンダーの表示 | カレンダーページにアクセス | 現在月のカレンダーとシフト情報が正しく表示される | |
+| 5 | シフト希望一覧 | 正常系 | 自分のシフト希望表示 | シフト希望一覧ページにアクセス | 自分が登録したシフト希望が一覧で表示される | |
+| 6 | 確定シフト表示 | 正常系 | 確定シフト一覧の表示 | 確定シフトページにアクセス | 全員の確定シフトが表示される | |
+| 7 | 管理者ダッシュボード | 正常系 | 管理者権限でのアクセス | 管理者アカウントでダッシュボードにアクセス | 管理者専用メニューが表示される | |
+| 8 | ナビゲーションバー | 正常系 | ログイン後のメニュー表示 | ログイン後にナビゲーションバーを確認 | ユーザー名とログアウトボタンが表示される | |
+| 9 | フォームバリデーション | 境界入力 | 最小文字数のユーザー名入力 | 登録フォームにusername="ab"（2文字）を入力 | バリデーションエラーが表示されない | |
+| 10 | フォームバリデーション | 境界入力 | 最大文字数のユーザー名入力 | 登録フォームにusername=20文字を入力 | バリデーションエラーが表示されない | |
+| 11 | フォームバリデーション | 境界入力 | 最小文字数の表示名入力 | 登録フォームにDisplayName="a"（1文字）を入力 | バリデーションエラーが表示されない | |
+| 12 | フォームバリデーション | 境界入力 | 最大文字数の表示名入力 | 登録フォームにDisplayName=20文字を入力 | バリデーションエラーが表示されない | |
+| 13 | 日付ピッカー | 境界入力 | 当日日付の選択 | 日付ピッカーで今日の日付を選択 | 選択した日付が正しくフォームに反映される | |
+| 14 | 説明文入力欄 | 境界入力 | 最大文字数（200文字）の入力 | シフト希望フォームの説明欄に200文字入力 | 文字数制限内で正常に入力される | |
+| 15 | 空のフォーム送信 | 境界入力 | 説明文を空にしてシフト希望作成 | 説明文を入力せずにシフト希望を作成 | 説明文なしで正常に作成される | |
+| 16 | レスポンシブ表示 | 境界入力 | モバイル画面サイズでの表示 | ブラウザをモバイルサイズに縮小してページ表示 | モバイル対応レイアウトで表示される | |
+| 17 | 無効なトークン | 異常系 | 認証トークン期限切れ | トークンが期限切れの状態でページアクセス | ログインページへリダイレクトされる | |
+| 18 | ネットワークエラー | 異常系 | API通信失敗時の処理 | ネットワーク切断状態でフォーム送信 | エラーメッセージが表示される | |
+| 19 | 不正なフォーム入力 | 異常系 | 文字数制限超過のユーザー名 | 登録フォームにusername=21文字以上を入力 | バリデーションエラーメッセージが表示される | |
+| 20 | 権限外ページアクセス | 異常系 | 一般ユーザーで管理者ページアクセス | 一般ユーザーで管理者ページURLに直接アクセス | 403エラーページまたはリダイレクトされる | |
+| 21 | 存在しないページ | 異常系 | 無効なURLへのアクセス | 存在しないページURLにアクセス | 404エラーページが表示される | |
+| 22 | 重複データ送信 | 異常系 | 同じ日付のシフト希望重複作成 | 既に登録済みの日付で再度シフト希望を作成 | 重複エラーメッセージが表示される | |
+| 23 | ブラウザ互換性 | 異常系 | 古いブラウザでのアクセス | 対応外のブラウザでアプリケーションを開く | 警告メッセージまたは基本機能のみ動作する | |
+| 24 | JavaScriptエラー | 異常系 | 未処理のJSエラー発生 | コンポーネントでランタイムエラーが発生 | エラーバウンダリーでキャッチされ、エラー画面が表示される | |
+
+### 📊 テストケース設計のポイント
+
+#### 🎯 **正常系テスト（各8件）**
+- 基本的な機能が期待通りに動作することを確認
+- 代表的なユーザーフローをカバー
+- API連携とフロントエンド表示の正常動作
+
+#### ⚡ **境界入力テスト（各8件）**
+- 最小値・最大値での動作確認
+- 空値・null値での処理確認
+- 文字数制限やデータ形式の境界値テスト
+
+#### 🚫 **異常系テスト（各8件）**
+- 認証・認可エラーの処理
+- ネットワークエラーやサーバーエラーの処理
+- 不正入力や権限外アクセスへの対応
+
+これらのテストケースは、SHIFT良質テスト3視点（正常系・境界入力・異常系）に基づいて設計し、実際の運用で発生しうる様々なシナリオを網羅しています。フロントエンドとバックエンドの両方で、堅牢なシフト管理アプリケーションの品質保証に貢献できる内容となっています。😊
+
+---
+
+## 🤖 Python自動テストツール作成（2025年7月17日）
+
+**要求**: https://expt.taka-sec.com で動いているアプリについて、自動でテストを行うPythonツールを作成
+
+### 🎯 実装した自動テストツール
+
+**ディレクトリ**: `python-automated-tests/`
+
+#### 📋 主要ファイル構成
+
+| ファイル | 説明 | 内容 |
+|:---------|:-----|:-----|
+| **`test_backend.py`** | バックエンドAPIテスト | requests使用、24個のAPIテストケース |
+| **`test_frontend.py`** | フロントエンドUIテスト | Selenium使用、24個のUIテストケース |
+| **`config.py`** | 設定管理クラス | 環境変数読み込み、ディレクトリ管理 |
+| **`run_tests.py`** | テスト実行スクリプト | メイン実行ファイル |
+| **`conftest.py`** | pytest設定 | テスト環境セットアップ |
+| **`requirements.txt`** | 依存関係 | 必要なPythonパッケージ |
+| **`.env.example`** | 環境設定サンプル | 認証情報等の設定例 |
+
+#### 🔧 技術スタック
+
+**バックエンドテスト**:
+- `requests`: HTTP APIテスト
+- `pytest`: テストフレームワーク
+- `python-dotenv`: 環境変数管理
+
+**フロントエンドテスト**:
+- `selenium`: ブラウザ自動操作
+- `webdriver-manager`: ChromeDriver自動管理
+- `beautifulsoup4`: HTML解析
+
+**レポート機能**:
+- `pytest-html`: HTMLテストレポート生成
+- `pytest-xdist`: 並列テスト実行
+
+#### 🎪 実装したテストケース
+
+**バックエンド（API）24件**:
+```python
+# 正常系（8件）
+test_01_user_registration_valid()     # ユーザー登録
+test_02_login_valid_credentials()     # ログイン
+test_03_shift_request_creation()      # シフト希望作成
+test_04_shift_requests_list()         # 希望一覧取得
+test_05_shift_request_update()        # 希望更新
+test_06_confirmed_shifts_list()       # 確定シフト取得
+test_07_admin_confirmed_shift_creation() # 管理者シフト作成
+test_08_user_info_retrieval()         # ユーザー情報取得
+
+# 境界入力（8件）
+test_09_username_min_length()         # ユーザー名最小文字
+test_10_username_max_length()         # ユーザー名最大文字
+test_11_display_name_min_length()     # 表示名最小文字
+test_12_display_name_max_length()     # 表示名最大文字
+test_13_shift_description_max_length() # 説明文最大文字
+test_14_month_query_min_value()       # 月クエリ最小値
+test_15_month_query_max_value()       # 月クエリ最大値
+test_16_null_description()            # null説明文
+
+# 異常系（8件）
+test_17_invalid_token()               # 無効トークン
+test_18_duplicate_username()          # 重複ユーザー名
+test_19_wrong_credentials()           # 認証失敗
+test_20_insufficient_permission()     # 権限不足
+test_21_nonexistent_resource()        # 存在しないリソース
+test_22_invalid_date_format()         # 無効日付
+test_23_access_others_resource()      # 他人リソースアクセス
+test_24_database_connection_error()   # DB接続エラー
+```
+
+**フロントエンド（UI）24件**:
+```python
+# 正常系（8件）
+test_01_login_valid_credentials()     # ログイン操作
+test_02_user_registration_valid()     # ユーザー登録フォーム
+test_03_shift_request_creation()      # シフト希望フォーム
+test_04_calendar_display()            # カレンダー表示
+test_05_shift_requests_list()         # 希望一覧画面
+test_06_confirmed_shifts_display()    # 確定シフト画面
+test_07_admin_dashboard_access()      # 管理者ダッシュボード
+test_08_navigation_after_login()      # ログイン後ナビ
+
+# 境界入力（8件）
+test_09_username_min_length()         # 最小文字数入力
+test_10_username_max_length()         # 最大文字数入力
+test_11_display_name_min_length()     # 表示名最小文字
+test_12_display_name_max_length()     # 表示名最大文字
+test_13_date_picker_today()           # 当日日付選択
+test_14_description_max_length()      # 説明文最大文字
+test_15_empty_description_submit()    # 空説明文送信
+test_16_responsive_mobile_view()      # レスポンシブ表示
+
+# 異常系（8件）
+test_17_invalid_token_redirect()      # 無効トークンリダイレクト
+test_18_network_error_handling()      # ネットワークエラー
+test_19_form_validation_error()       # フォームバリデーション
+test_20_unauthorized_admin_access()   # 権限外アクセス
+test_21_nonexistent_page()            # 存在しないページ
+test_22_duplicate_shift_request()     # 重複シフト希望
+test_23_browser_compatibility()       # ブラウザ互換性
+test_24_javascript_error_handling()   # JSエラーハンドリング
+```
+
+#### 🚀 使用方法
+
+**1. 環境セットアップ**:
+```bash
+cd python-automated-tests
+pip install -r requirements.txt
+cp .env.example .env
+# .envファイルに実際の認証情報を設定
+```
+
+**2. テスト実行**:
+```bash
+# 全テスト実行
+python run_tests.py
+
+# 種類別実行
+python run_tests.py backend    # バックエンドのみ
+python run_tests.py frontend   # フロントエンドのみ
+python run_tests.py normal     # 正常系のみ
+python run_tests.py boundary   # 境界入力のみ
+python run_tests.py error      # 異常系のみ
+```
+
+**3. 結果確認**:
+- **HTMLレポート**: `reports/test_report_YYYYMMDD_HHMMSS.html`
+- **スクリーンショット**: `screenshots/`フォルダ
+- **ログ**: `logs/`フォルダ
+
+#### 🎛️ 主要機能
+
+**1. 設定可能オプション**:
+```env
+BASE_URL=https://expt.taka-sec.com
+HEADLESS=True                    # ヘッドレスモード
+TIMEOUT=30                       # タイムアウト時間
+SCREENSHOT_ON_FAILURE=True       # 失敗時スクリーンショット
+DEBUG=True                       # デバッグ出力
+```
+
+**2. 自動機能**:
+- ChromeDriver自動ダウンロード・管理
+- テスト用ユーザー自動作成
+- 失敗時自動スクリーンショット撮影
+- 詳細なHTMLレポート生成
+- 並列実行対応
+
+**3. エラーハンドリング**:
+- タイムアウト時の自動リトライ
+- 要素が見つからない場合のスキップ
+- 詳細なエラーログ出力
+- テスト失敗時の状況保存
+
+#### 📊 テスト設計思想
+
+**SHIFT良質テスト3視点に基づく設計**:
+- **① 正常系**: 基本的なユーザーフローが正常動作
+- **② 境界入力**: 制限値での動作確認、null値処理
+- **③ 異常系**: エラー時の安全な失敗、セキュリティ確認
+
+**実際の運用を想定したテストケース**:
+- 認証・認可の確認
+- データ重複・競合状態の処理
+- ネットワークエラー時の挙動
+- ブラウザ互換性
+- レスポンシブデザイン対応
+
+このPython自動テストツールにより、https://expt.taka-sec.com で動作するShiftManagerアプリケーションの品質を継続的に監視・検証できるようになりました！🎉
