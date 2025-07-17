@@ -31,7 +31,7 @@ ADMIN_CODE = os.getenv("ADMIN_CODE", "admin123")
 # データベース設定
 DATABASE_URL = os.getenv("DATABASE_URL", "mysql+pymysql://user:password@localhost/shift_management")
 
-engine = create_engine(DATABASE_URL)
+engine = create_engine(DATABASE_URL, pool_recycle=3600)
 SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
 Base = declarative_base()
 
